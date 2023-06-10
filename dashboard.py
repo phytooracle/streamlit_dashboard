@@ -68,6 +68,9 @@ def main():
     except:
         st.write("Something went wrong establishing a iRODS session.")
     else:
+        # Titles for sidebar and main section
+        st.sidebar.title(":green[Phytooracle] :seedling:")
+        st.title("Visualization")
         # To get a list of seasons
         try:
             seasons = get_seasons(session)
@@ -77,7 +80,9 @@ def main():
             season_display_names = sorted(
                 seasons.keys(), key=lambda x: int(x.split(" ")[1])
             )
-            selected_season = st.selectbox("Select a season: ", season_display_names)
+            selected_season = st.sidebar.selectbox(
+                "Select a season: ", season_display_names
+            )
 
             # To get a list of crops grown that season
             try:
@@ -85,7 +90,7 @@ def main():
             except:
                 st.write("No data for this season. ")
             else:
-                selected_crop = st.selectbox("Select a crop: ", sorted(crops))
+                selected_crop = st.sidebar.selectbox("Select a crop: ", sorted(crops))
 
                 # To get a list of scans(dates) for the given crop
                 try:
@@ -95,7 +100,7 @@ def main():
                         f"This season's {selected_crop} has not been processed yet. Check back later."
                     )
                 display_dates = sorted(dates.keys())
-                selected_date = st.selectbox("Select a date: ", display_dates)
+                selected_date = st.sidebar.selectbox("Select a date: ", display_dates)
 
                 date_directory_path = f"/iplant/home/shared/phytooracle/{seasons[selected_season]}/level_1/stereoTop/{selected_crop}/{dates[selected_date]}"
                 date_directory = session.collections.get(date_directory_path)
@@ -108,8 +113,6 @@ def main():
                 download_plant_detection_csv(
                     session, dates, selected_date, plant_detection_csv_path
                 )
-
-                print(f"detect_out/{dates[selected_date]}_detection.csv")
                 df = pd.read_csv(f"detect_out/{dates[selected_date]}_detection.csv")
                 st.dataframe(df)
 
