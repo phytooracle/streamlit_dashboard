@@ -37,22 +37,36 @@ def get_dates(session, season, crop):
     return dates
 
 
+def download_fieldbook(session, season):
+    season_file_collection = session.collections.get(
+        f"/iplant/home/shared/phytooracle/{season}"
+    )
+    for file in season_file_collection.data_objects:
+        if re.search("field*book", file.name, re.IGNORECASE) or re.search(
+            "book", file.name, re.IGNORECASE
+        ):
+            if not (os.path.exists(f"field_books/{file.name}")):
+                if not os.path.exists("field_books"):
+                    os.makedirs("field_books")
+                session.data_objects.get(
+                    f"/iplant/home/shared/phytooracle/{season}/{file.name}",
+                    "field_books",
+                )
+            return file.name
+    return ""
+
+
 def download_plant_detection_csv(
     session, dates, selected_date, plant_detection_csv_path
 ):
-    progress_text = "Please wait. This might take a few minutes"
-    my_bar = st.progress(0, text=progress_text)
     if not (os.path.exists(f"detect_out/{dates[selected_date]}_detection.csv")):
-        for percent_complete in range(100):
-            plant_detect_tar = session.data_objects.get(plant_detection_csv_path)
-            with open("local_file.tar", "wb") as f:
-                with plant_detect_tar.open("r") as d:
-                    f.write(d.read())
-                # Extract the contents of the tar file
-                with tarfile.open("local_file.tar", "r") as tar:
-                    tar.extractall()
-            my_bar.progress(percent_complete + 1, text=progress_text)
-    my_bar.empty()
+        with st.spinner("This might take some time. Please wait..."):
+            session.data_objects.get(
+                plant_detection_csv_path, "local_file_delete.tar", force=True
+            )
+            with tarfile.open("local_file_delete.tar", "r") as tar:
+                tar.extractall()
+    os.remove("local_file_delete.tar")
 
 
 def main():
@@ -110,11 +124,21 @@ def main():
                     if "detect_out" in files.name:
                         plant_detection_csv_path = f"{date_directory_path}/{files.name}"
 
-                download_plant_detection_csv(
-                    session, dates, selected_date, plant_detection_csv_path
-                )
-                df = pd.read_csv(f"detect_out/{dates[selected_date]}_detection.csv")
-                st.dataframe(df)
+                # Download necessary files (just fieldbook and plantdetection csv for now)
+                field_book_name = download_fieldbook(session, seasons[selected_season])
+                if field_book_name == "":
+                    st.write("No fieldbook for this season was found")
+                else:
+                    download_plant_detection_csv(
+                        session, dates, selected_date, plant_detection_csv_path
+                    )
+                    plant_detect_df = pd.read_csv(
+                        f"detect_out/{dates[selected_date]}_detection.csv"
+                    )
+
+                    # Data Analysis and vis section starts
+                    st.dataframe(plant_detect_df)
+                    # data_analysis(df)
 
 
 if __name__ == "__main__":
