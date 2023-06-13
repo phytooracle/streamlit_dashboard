@@ -6,6 +6,29 @@ import os
 import tarfile
 
 
+def data_analysis(plant_detect_df, field_book_name):
+    # make field book dataframe based on its extension
+    if field_book_name.split(".")[1] == "xlsx":
+        try:
+            field_book_df = pd.read_excel(
+                io=f"field_books/{field_book_name}", sheet_name="fieldbook"
+            )
+        except:
+            field_book_df = pd.read_excel(
+                io=f"field_books/{field_book_name}", sheet_name="Fieldbook"
+            )
+    elif field_book_name.split(".")[1] == "csv":
+        field_book_df = pd.read_csv(f"field_books/{field_book_name}")
+    else:
+        st.write(
+            f"Can't deal with files of this extension yet for the file {field_book_name}."
+        )
+        st.write("Please contact the Phytooracle staff")
+        return
+    result = plant_detect_df.merge(field_book_df, on="plot")
+    st.dataframe(result)
+
+
 def get_seasons(session):
     seasons = {}
     root_collection = session.collections.get("/iplant/home/shared/phytooracle")
@@ -66,11 +89,11 @@ def download_plant_detection_csv(
             )
             with tarfile.open("local_file_delete.tar", "r") as tar:
                 tar.extractall()
-    os.remove("local_file_delete.tar")
+        os.remove("local_file_delete.tar")
 
 
 def main():
-    # To establish a iRODS session
+    # To establish a iRODS session & configure the web app
     try:
         session = iRODSSession(
             host="data.cyverse.org",
@@ -79,11 +102,15 @@ def main():
             password="adityakumar",
             zone="iplant",
         )
+        st.set_page_config(
+            page_title="Dashboard", page_icon=":seedling:", layout="wide"
+        )
     except:
         st.write("Something went wrong establishing a iRODS session.")
     else:
         # Titles for sidebar and main section
         st.sidebar.title(":green[Phytooracle] :seedling:")
+        st.sidebar.subheader("Scan selection")
         st.title("Visualization")
         # To get a list of seasons
         try:
@@ -137,8 +164,7 @@ def main():
                     )
 
                     # Data Analysis and vis section starts
-                    st.dataframe(plant_detect_df)
-                    # data_analysis(df)
+                    data_analysis(plant_detect_df, field_book_name)
 
 
 if __name__ == "__main__":
