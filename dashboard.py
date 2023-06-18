@@ -6,6 +6,15 @@ import os
 import tarfile
 
 
+def create_filter(combined_data):
+    st.dataframe(combined_data)
+    selected_column_name = st.selectbox(
+        "Filter", ["Treatment", "Plot", "Rep", "Range", "Column", "Genotype"]
+    )
+    # for column_name in combined_data.columns:
+    #     if re.search(f"{selected_column_name}|lon|lat|max|min", column_name, re.IGNORECASE):
+
+
 def data_analysis(plant_detect_df, field_book_name):
     # make field book dataframe based on its extension
     if field_book_name.split(".")[1] == "xlsx":
@@ -26,7 +35,7 @@ def data_analysis(plant_detect_df, field_book_name):
         st.write("Please contact the Phytooracle staff")
         return
     result = plant_detect_df.merge(field_book_df, on="plot")
-    st.dataframe(result)
+    create_filter(combined_data=result)
 
 
 def get_seasons(session):
@@ -51,9 +60,14 @@ def get_crops(session, season):
 
 def get_dates(session, season, crop):
     dates = {}
-    season_date_collection = session.collections.get(
-        f"/iplant/home/shared/phytooracle/{season}/level_1/stereoTop/{crop}/"
-    )
+    if crop != "":
+        season_date_collection = session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_1/stereoTop/{crop}/"
+        )
+    else:
+        season_date_collection = session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_1/stereoTop/"
+        )
     for directory in season_date_collection.subcollections:
         if not re.search("dep", directory.name):
             dates[directory.name.split("_")[0]] = directory.name
@@ -94,6 +108,19 @@ def download_plant_detection_csv(
 
 def main():
     # To establish a iRODS session & configure the web app
+    st.set_page_config(
+        page_title="Phytooracle Dashboard", page_icon=":seedling:", layout="wide"
+    )
+    hide_default_format = """
+                        <style>
+                        .reportview-container.main.block-container {{
+                        padding-top: {padding_top}rem;
+                        }}
+                        #MainMenu {visibility: hidden; }
+                        footer {visibility: hidden;}
+                        </style>
+                        """
+    st.markdown(hide_default_format, unsafe_allow_html=True)
     try:
         session = iRODSSession(
             host="data.cyverse.org",
@@ -102,11 +129,9 @@ def main():
             password="adityakumar",
             zone="iplant",
         )
-        st.set_page_config(
-            page_title="Dashboard", page_icon=":seedling:", layout="wide"
-        )
-    except:
+    except Exception as e:
         st.write("Something went wrong establishing a iRODS session.")
+        st.write(e)
     else:
         # Titles for sidebar and main section
         st.sidebar.title(":green[Phytooracle] :seedling:")
@@ -127,25 +152,46 @@ def main():
 
             # To get a list of crops grown that season
             try:
-                crops = get_crops(session, seasons[selected_season])
+                if selected_season != "Season 10" or selected_season != "Season 11":
+                    crops = get_crops(session, seasons[selected_season])
             except:
                 st.write("No data for this season. ")
             else:
-                selected_crop = st.sidebar.selectbox("Select a crop: ", sorted(crops))
-
+                if selected_season != "Season 10" and selected_season != "Season 11":
+                    selected_crop = st.sidebar.selectbox(
+                        "Select a crop: ", sorted(crops)
+                    )
                 # To get a list of scans(dates) for the given crop
                 try:
-                    dates = get_dates(session, seasons[selected_season], selected_crop)
+                    if (
+                        selected_season != "Season 10"
+                        and selected_season != "Season 11"
+                    ):
+                        dates = get_dates(
+                            session, seasons[selected_season], selected_crop
+                        )
+                    else:
+                        dates = get_dates(session, seasons[selected_season], "")
                 except:
                     st.write(
-                        f"This season's {selected_crop} has not been processed yet. Check back later."
+                        f"This season's crop has not been processed yet. Check back later."
                     )
                 display_dates = sorted(dates.keys())
                 selected_date = st.sidebar.selectbox("Select a date: ", display_dates)
 
-                date_directory_path = f"/iplant/home/shared/phytooracle/{seasons[selected_season]}/level_1/stereoTop/{selected_crop}/{dates[selected_date]}"
+                if selected_season != "Season 10" and selected_season != "Season 11":
+                    date_directory_path = (
+                        f"/iplant/home/shared/phytooracle/"
+                        f"{seasons[selected_season]}/level_1/"
+                        f"stereoTop/{selected_crop}/{dates[selected_date]}"
+                    )
+                else:
+                    date_directory_path = (
+                        f"/iplant/home/shared/phytooracle/"
+                        f"{seasons[selected_season]}/level_1/"
+                        f"stereoTop/{dates[selected_date]}"
+                    )
                 date_directory = session.collections.get(date_directory_path)
-
                 # To go through the processed files for the date to finde the plant detection zip
                 for files in date_directory.data_objects:
                     if "detect_out" in files.name:
