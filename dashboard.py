@@ -5,6 +5,13 @@ import re
 import os
 import tarfile
 
+
+@st.cache_data
+def convert_df(df):
+    # Cache the conversion to prevent computation on every rerun
+    return df.to_csv(index=False).encode("utf-8")
+
+
 def get_seasons(session):
     seasons = {}
     try:
@@ -128,7 +135,7 @@ def download_plant_detection_csv(
         os.remove("local_file_delete.tar")
 
 
-def data_analysis(plant_detect_df, field_book_name):
+def data_analysis(plant_detect_df, field_book_name, sensor):
     # make field book dataframe based on its extension
     if field_book_name.split(".")[1] == "xlsx":
         try:
@@ -149,7 +156,69 @@ def data_analysis(plant_detect_df, field_book_name):
         return
     # DISCUSS THIS MERGE TECHNIQUE
     result = plant_detect_df.merge(field_book_df, on="plot")
-    create_filter(combined_data=result)
+    create_filter(combined_data=result, sensor=sensor)
+
+
+def create_filter(combined_data, sensor):
+    filter_options = {
+        "ps2Top": ["Treatment", "Plot", "Rep", "Range", "Column", "Genotype", "FV/FM"],
+        "stereoTop": [
+            "Treatment",
+            "Plot",
+            "Rep",
+            "Range",
+            "Column",
+            "Genotype",
+            "Bounding_area_m2",
+        ],
+        "flirIrCamera": [
+            "Treatment",
+            "Plot",
+            "Rep",
+            "Range",
+            "Column",
+            "Genotype",
+            "Median",
+            "Mean",
+            "Var",
+            "std_dev",
+        ],
+        "scanner3DTop": [
+            "Treatment",
+            "Plot",
+            "Rep",
+            "Range",
+            "Column",
+            "Genotype",
+            "axis_aligned_bounding_volume",
+            "oriented_bounding_volume",
+            "hull_volume",
+        ],
+    }
+    selected_column_name = st.selectbox("Filter", filter_options[sensor])
+    st.header("All Data")
+    st.dataframe(combined_data)
+    selected_columns = []
+    for column_name in combined_data.columns:
+        if re.search(
+            f"{selected_column_name}|lon|lat|max|min", column_name, re.IGNORECASE
+        ):
+            selected_columns.append(column_name)
+    filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
+    st.header("Filtered Data")
+    st.dataframe(filtered_df)
+    st.download_button(
+        label="Download All Data",
+        data=convert_df(combined_data),
+        file_name="combined_data.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        label="Download Filtered Data (Co-ordinates + Selected Field)",
+        data=convert_df(filtered_df),
+        file_name="filtered_data.csv",
+        mime="text/csv",
+    )
 
 
 def main():
@@ -170,7 +239,6 @@ def main():
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
     st.title("Visualization")
-
     # To establish an irods session
     try:
         session = iRODSSession(
@@ -241,12 +309,14 @@ def main():
                                     selected_date,
                                     plant_detection_csv_path,
                                 )
-                            plant_detect_df = pd.read_csv(
-                                f"detect_out/{dates[selected_date]}_detection.csv"
-                            )
+                                plant_detect_df = pd.read_csv(
+                                    f"detect_out/{dates[selected_date]}_detection.csv"
+                                )
 
-                            # Data Analysis and vis section starts
-                            data_analysis(plant_detect_df, field_book_name)
+                                # Data Analysis and vis section starts
+                                data_analysis(
+                                    plant_detect_df, field_book_name, selected_sensor
+                                )
 
 
 if __name__ == "__main__":
