@@ -4,6 +4,7 @@ import streamlit as st
 import re
 import os
 import tarfile
+import plotly.express as px
 
 
 @st.cache_data
@@ -195,34 +196,71 @@ def create_filter(combined_data, sensor):
             "hull_volume",
         ],
     }
-    selected_column_name = st.selectbox("Filter", filter_options[sensor])
-    st.header("All Data")
-    st.dataframe(combined_data)
+    selected_column_name = filter_sec.selectbox("Filter", filter_options[sensor])
+    col1.header("All Data")
+    col1.dataframe(combined_data)
     selected_columns = []
+    exact_column_name = selected_column_name
     for column_name in combined_data.columns:
         if re.search(
             f"{selected_column_name}|lon|lat|max|min", column_name, re.IGNORECASE
         ):
+            if re.search(selected_column_name, column_name, re.IGNORECASE):
+                exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
-    st.header("Filtered Data")
-    st.dataframe(filtered_df)
-    st.download_button(
+    col2.header("Filtered Data")
+    col2.dataframe(filtered_df)
+    col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
-        file_name="combined_data.csv",
+        file_name=f"_combined_data.csv",
         mime="text/csv",
     )
-    st.download_button(
+    col2.download_button(
         label="Download Filtered Data (Co-ordinates + Selected Field)",
         data=convert_df(filtered_df),
         file_name="filtered_data.csv",
         mime="text/csv",
     )
+    get_visuals(filtered_df, exact_column_name)
+
+
+def get_visuals(filtered_df, column_name):
+    # Emmanuel's API key, Might need to change this
+    px.set_mapbox_access_token(
+        "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
+    )
+    fig = px.scatter_mapbox(
+        filtered_df,
+        lat="lat",
+        lon="lon",
+        color=column_name,
+        zoom=16.6,
+        opacity=1,
+        mapbox_style="satellite-streets",
+    )
+
+    # Change color scheme
+    fig.update_traces(marker=dict(colorscale="Viridis"))
+
+    # Change layout
+    fig.update_layout(
+        title="New Plotly Map",
+        geo_scope="usa",
+        autosize=True,
+        font=dict(family="Courier New, monospace", size=18, color="RebeccaPurple"),
+    )
+
+    plotly_col.plotly_chart(fig, use_container_width=True)
+
+    dist = px.histogram(filtered_df, x=column_name, color=column_name)
+    dist.update_layout(title=f"{column_name} distribution", autosize=True)
+    dist_col.plotly_chart(dist, use_container_width=True)
 
 
 def main():
-    # Settung up the app for aesthetic changes
+    # Setting up the app for aesthetic changes
     st.set_page_config(
         page_title="Phytooracle Dashboard", page_icon=":seedling:", layout="wide"
     )
@@ -238,14 +276,19 @@ def main():
     st.markdown(hide_default_format, unsafe_allow_html=True)
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
-    st.title("Visualization")
+    st.title("Dashboard")
+    global col1, col2, filter_sec, vis_container, plotly_col, dist_col
+    filter_sec = st.container()
+    vis_container = st.container()
+    plotly_col, dist_col = vis_container.columns(2)
+    col1, col2 = st.columns(2)
     # To establish an irods session
     try:
         session = iRODSSession(
             host="data.cyverse.org",
             port=1247,
-            user="adityakumar",
-            password="adityakumar",
+            user="anonymous",
+            password="anonymous",
             zone="iplant",
         )
     except:
