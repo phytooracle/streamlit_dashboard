@@ -214,13 +214,13 @@ def create_filter(combined_data, sensor):
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
-        file_name=f"_combined_data.csv",
+        file_name=f"{combined_data.iloc[0, 0]}_combined_data.csv",
         mime="text/csv",
     )
     col2.download_button(
         label="Download Filtered Data (Co-ordinates + Selected Field)",
         data=convert_df(filtered_df),
-        file_name="filtered_data.csv",
+        file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
     get_visuals(filtered_df, exact_column_name)
