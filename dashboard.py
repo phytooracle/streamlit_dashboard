@@ -246,7 +246,7 @@ def get_visuals(filtered_df, column_name):
 
     # Change layout
     fig.update_layout(
-        title="New Plotly Map",
+        title="Plotly Map",
         geo_scope="usa",
         autosize=True,
         font=dict(family="Courier New, monospace", size=18, color="RebeccaPurple"),
