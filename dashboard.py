@@ -99,8 +99,12 @@ def get_plant_detection_csv_path(session, season, sensor, crop, date, alt_layout
     date_directory = session.collections.get(date_directory_path)
     # To go through the processed files for the date to finde the plant detection zip
     for files in date_directory.data_objects:
-        if "detect_out" in files.name:
-            return f"{date_directory_path}/{files.name}"
+        if sensor != "ps2Top":
+            if "detect_out" in files.name:
+                return f"{date_directory_path}/{files.name}"
+        else:
+            if "aggregation_out" in files.name:
+                return f"{date_directory_path}/{files.name}"
     st.write("No Plant Detection CSV is present for this sensor on this date. ")
     return ""
 
@@ -156,6 +160,7 @@ def data_analysis(plant_detect_df, field_book_name, sensor):
         st.write("Please contact the Phytooracle staff")
         return
     # DISCUSS THIS MERGE TECHNIQUE
+    plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
     create_filter(combined_data=result, sensor=sensor)
 
@@ -337,9 +342,10 @@ def main():
                         dates[selected_date],
                         alt_layout,
                     )
+                    st.write(plant_detection_csv_path)
                     if plant_detection_csv_path != "":
                         # Download necessary files (just fieldbook and plantdetection csv for now)
-                        with filter_sec.spinner("This might take some time. Please wait..."):
+                        with st.spinner("This might take some time. Please wait..."):
                             field_book_name = download_fieldbook(
                                 session, seasons[selected_season]
                             )
@@ -352,8 +358,14 @@ def main():
                                     selected_date,
                                     plant_detection_csv_path,
                                 )
-                                plant_detect_df = pd.read_csv(
-                                    f"detect_out/{dates[selected_date]}_detection.csv"
+                                plant_detect_df = (
+                                    pd.read_csv(
+                                        f"detect_out/{dates[selected_date]}_detection.csv"
+                                    )
+                                    if selected_sensor != "ps2Top"
+                                    else pd.read_csv(
+                                        f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
+                                    )
                                 )
 
                                 # Data Analysis and vis section starts
