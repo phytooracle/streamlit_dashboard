@@ -339,7 +339,7 @@ def main():
                     )
                     if plant_detection_csv_path != "":
                         # Download necessary files (just fieldbook and plantdetection csv for now)
-                        with st.spinner("This might take some time. Please wait..."):
+                        with filter_sec.spinner("This might take some time. Please wait..."):
                             field_book_name = download_fieldbook(
                                 session, seasons[selected_season]
                             )
