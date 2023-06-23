@@ -169,11 +169,15 @@ def data_analysis(plant_detect_df, field_book_name, sensor):
     if field_book_name.split(".")[1] == "xlsx":
         try:
             field_book_df = pd.read_excel(
-                io=f"field_books/{field_book_name}", sheet_name="fieldbook"
+                io=f"field_books/{field_book_name}",
+                sheet_name="fieldbook",
+                engine="openpyxl",
             )
         except:
             field_book_df = pd.read_excel(
-                io=f"field_books/{field_book_name}", sheet_name="Fieldbook"
+                io=f"field_books/{field_book_name}",
+                sheet_name="Fieldbook",
+                engine="openpyxl",
             )
     elif field_book_name.split(".")[1] == "csv":
         field_book_df = pd.read_csv(f"field_books/{field_book_name}")
