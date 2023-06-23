@@ -154,10 +154,8 @@ def download_fieldbook(session, season):
     return ""
 
 
-def download_plant_detection_csv(
-    session, dates, selected_date, plant_detection_csv_path
-):
-    if not (os.path.exists(f"detect_out/{dates[selected_date]}_detection.csv")):
+def download_plant_detection_csv(session, local_file_name, plant_detection_csv_path):
+    if not (os.path.exists(f"detect_out/{local_file_name}")):
         session.data_objects.get(
             plant_detection_csv_path, "local_file_delete.tar", force=True
         )
@@ -378,21 +376,22 @@ def main():
                             if field_book_name == "":
                                 st.write("No fieldbook for this season was found")
                             else:
-                                st.write(selected_sensor)
-                                download_plant_detection_csv(
-                                    session,
-                                    dates,
-                                    selected_date,
-                                    plant_detection_csv_path,
-                                )
                                 local_file_name = plant_detection_csv_path.split("/")[
                                     -1
                                 ].split(".")[0]
-                                local_file_name = local_file_name[
-                                    : len(local_file_name) - 4
-                                ]
+                                local_file_name = f"{local_file_name[: len(local_file_name) - 4]}ion.csv"
+                                local_file_name = (
+                                    f"{dates[selected_date]}_fluorescence_aggregation"
+                                    if selected_sensor == "ps2Top"
+                                    else local_file_name
+                                )
+                                download_plant_detection_csv(
+                                    session,
+                                    local_file_name,
+                                    plant_detection_csv_path,
+                                )
                                 plant_detect_df = (
-                                    pd.read_csv(f"detect_out/{local_file_name}ion.csv")
+                                    pd.read_csv(f"detect_out/{local_file_name}")
                                     if selected_sensor != "ps2Top"
                                     else pd.read_csv(
                                         f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
