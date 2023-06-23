@@ -1,4 +1,5 @@
 from irods.session import iRODSSession
+from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 import re
@@ -76,7 +77,9 @@ def get_dates(session, season, sensor, crop):
                 f"/iplant/home/shared/phytooracle/{season}/level_1/{sensor}/"
             )
     except:
-        st.write("This season's crop has not been processed yet. Check back later.")
+        st.write(
+            "This season's crop has not been processed yet for {sensor} sensor. Check back later."
+        )
         return dates
     else:
         for directory in season_date_collection.subcollections:
@@ -85,7 +88,30 @@ def get_dates(session, season, sensor, crop):
         return dates
 
 
-def get_plant_detection_csv_path(session, season, sensor, crop, date, alt_layout):
+def get_plant_detection_csv_path(
+    session, season, sensor, crop, dates, selected_date, alt_layout
+):
+    if re.search("3d", sensor, re.IGNORECASE):
+        dates_RGB = get_dates(session, season, "stereoTop", crop)
+        date_RGB = ""
+        date_3D_obj = datetime.strptime(selected_date, "%Y-%m-%d")
+        for date_id in dates_RGB.keys():
+            dte_obj = datetime.strptime(date_id, "%Y-%m-%d")
+            if (date_3D_obj == dte_obj) or (
+                date_3D_obj == dte_obj + timedelta(days=1)
+                or date_3D_obj == dte_obj - timedelta(days=1)
+            ):
+                date_RGB = date_id
+                break
+        if date_RGB == "":
+            st.write(
+                f"No Plant Detection CSV is present for this sensor on this date. ({selected_date})"
+            )
+            return ""
+        date = dates_RGB[date_RGB]
+        sensor = "stereoTop"
+    else:
+        date = dates[selected_date]
     if alt_layout:
         date_directory_path = (
             f"/iplant/home/shared/phytooracle/{season}/level_1/{sensor}/{date}"
@@ -339,10 +365,10 @@ def main():
                         seasons[selected_season],
                         selected_sensor,
                         selected_crop,
-                        dates[selected_date],
+                        dates,
+                        selected_date,
                         alt_layout,
                     )
-                    st.write(plant_detection_csv_path)
                     if plant_detection_csv_path != "":
                         # Download necessary files (just fieldbook and plantdetection csv for now)
                         with st.spinner("This might take some time. Please wait..."):
@@ -352,22 +378,27 @@ def main():
                             if field_book_name == "":
                                 st.write("No fieldbook for this season was found")
                             else:
+                                st.write(selected_sensor)
                                 download_plant_detection_csv(
                                     session,
                                     dates,
                                     selected_date,
                                     plant_detection_csv_path,
                                 )
+                                local_file_name = plant_detection_csv_path.split("/")[
+                                    -1
+                                ].split(".")[0]
+                                local_file_name = local_file_name[
+                                    : len(local_file_name) - 4
+                                ]
                                 plant_detect_df = (
-                                    pd.read_csv(
-                                        f"detect_out/{dates[selected_date]}_detection.csv"
-                                    )
+                                    pd.read_csv(f"detect_out/{local_file_name}ion.csv")
                                     if selected_sensor != "ps2Top"
                                     else pd.read_csv(
                                         f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
                                     )
                                 )
-
+                                # pick up here
                                 # Data Analysis and vis section starts
                                 data_analysis(
                                     plant_detect_df, field_book_name, selected_sensor
