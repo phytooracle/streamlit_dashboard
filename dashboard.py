@@ -190,42 +190,46 @@ def data_analysis(plant_detect_df, field_book_name, sensor):
 
 
 def create_filter(combined_data, sensor):
-    filter_options = {
-        "ps2Top": ["Treatment", "Plot", "Rep", "Range", "Column", "Genotype", "FV/FM"],
-        "stereoTop": [
-            "Treatment",
-            "Plot",
-            "Rep",
-            "Range",
-            "Column",
-            "Genotype",
-            "Bounding_area_m2",
-        ],
-        "flirIrCamera": [
-            "Treatment",
-            "Plot",
-            "Rep",
-            "Range",
-            "Column",
-            "Genotype",
-            "Median",
-            "Mean",
-            "Var",
-            "std_dev",
-        ],
-        "scanner3DTop": [
-            "Treatment",
-            "Plot",
-            "Rep",
-            "Range",
-            "Column",
-            "Genotype",
-            "axis_aligned_bounding_volume",
-            "oriented_bounding_volume",
-            "hull_volume",
-        ],
-    }
-    selected_column_name = filter_sec.selectbox("Filter", filter_options[sensor])
+    # filter_options = {
+    #     "ps2Top": ["Treatment", "Plot", "Rep", "Range", "Column", "Genotype", "FV/FM"],
+    #     "stereoTop": [
+    #         "Treatment",
+    #         "Plot",
+    #         "Rep",
+    #         "Range",
+    #         "Column",
+    #         "Genotype",
+    #         "Bounding_area_m2",
+    #     ],
+    #     "flirIrCamera": [
+    #         "Treatment",
+    #         "Plot",
+    #         "Rep",
+    #         "Range",
+    #         "Column",
+    #         "Genotype",
+    #         "Median",
+    #         "Mean",
+    #         "Var",
+    #         "std_dev",
+    #     ],
+    #     "scanner3DTop": [
+    #         "Treatment",
+    #         "Plot",
+    #         "Rep",
+    #         "Range",
+    #         "Column",
+    #         "Genotype",
+    #         "axis_aligned_bounding_volume",
+    #         "oriented_bounding_volume",
+    #         "hull_volume",
+    #     ],
+    # }
+    filter_options = []
+    for column_name in combined_data.columns:
+        if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
+            filter_options.append(column_name)
+    selected_column_name = filter_sec.selectbox("Filter", filter_options)
     col1.header("All Data")
     col1.dataframe(combined_data)
     selected_columns = []
