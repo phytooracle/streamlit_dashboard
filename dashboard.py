@@ -2,10 +2,11 @@ from irods.session import iRODSSession
 from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
+import plotly.express as px
 import re
 import os
 import tarfile
-import plotly.express as px
+import glob
 
 
 @st.cache_data
@@ -164,7 +165,9 @@ def download_plant_detection_csv(session, local_file_name, plant_detection_csv_p
         os.remove("local_file_delete.tar")
 
 
-def data_analysis(plant_detect_df, field_book_name, sensor):
+def data_analysis(
+    session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
+):
     # make field book dataframe based on its extension
     if field_book_name.split(".")[1] == "xlsx":
         try:
@@ -190,7 +193,51 @@ def data_analysis(plant_detect_df, field_book_name, sensor):
     # DISCUSS THIS MERGE TECHNIQUE
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
+    if "3D" in sensor or "ps2Top" in sensor:
+        result = extra_processing(session, season, result, sensor, crop, date, layout)
     create_filter(combined_data=result, sensor=sensor)
+
+
+def extra_processing(session, season, combined_df, sensor, crop, date, alt_layout):
+    # NEED TO MAKE THIS WORK FOR ALT LAYOUT
+    if "3D" in sensor:
+        try:
+            if not (os.path.exists(f"3d_volumes_entropy_v009")):
+                collection = session.collections.get(
+                    f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out"
+                )
+                for file in collection.data_objects:
+                    if re.search("volumes_entropy", file.name):
+                        session.data_objects.get(
+                            f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/"
+                            f"{crop}/{date}/individual_plants_out/{file.name}",
+                            "local_file_delete.tar",
+                            force=True,
+                        )
+                        break
+                with tarfile.open("local_file_delete.tar", "r") as tar:
+                    tar.extractall()
+                os.remove("local_file_delete.tar")
+            ind_plant_df = combine_all_csv("3d_volumes_entropy_v009")
+            st.dataframe(ind_plant_df)
+        except:
+            st.write(
+                f"The 3D scans for this season were processed to the level required for any visuals."
+                f"Please try any other sensor/season. "
+            )
+            return
+
+
+def combine_all_csv(path):
+    all_files = glob.glob(path + "/*.csv")
+    li = []
+
+    for filename in all_files:
+        df = pd.read_csv(filename, index_col=None, header=0)
+        li.append(df)
+
+    result_frame = pd.concat(li, axis=0, ignore_index=True)
+    return frame
 
 
 def create_filter(combined_data, sensor):
@@ -377,39 +424,49 @@ def main():
                     )
                     if plant_detection_csv_path != "":
                         # Download necessary files (just fieldbook and plantdetection csv for now)
-                        with st.spinner("This might take some time. Please wait..."):
-                            field_book_name = download_fieldbook(
-                                session, seasons[selected_season]
-                            )
-                            if field_book_name == "":
-                                st.write("No fieldbook for this season was found")
-                            else:
-                                local_file_name = plant_detection_csv_path.split("/")[
-                                    -1
-                                ].split(".")[0]
-                                local_file_name = f"{local_file_name[: len(local_file_name) - 4]}ion.csv"
-                                local_file_name = (
-                                    f"{dates[selected_date]}_fluorescence_aggregation"
-                                    if selected_sensor == "ps2Top"
-                                    else local_file_name
+                        with filter_sec:
+                            with st.spinner(
+                                "This might take some time. Please wait..."
+                            ):
+                                field_book_name = download_fieldbook(
+                                    session, seasons[selected_season]
                                 )
-                                download_plant_detection_csv(
-                                    session,
-                                    local_file_name,
-                                    plant_detection_csv_path,
-                                )
-                                plant_detect_df = (
-                                    pd.read_csv(f"detect_out/{local_file_name}")
-                                    if selected_sensor != "ps2Top"
-                                    else pd.read_csv(
-                                        f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
+                                if field_book_name == "":
+                                    st.write("No fieldbook for this season was found")
+                                else:
+                                    local_file_name = plant_detection_csv_path.split(
+                                        "/"
+                                    )[-1].split(".")[0]
+                                    local_file_name = f"{local_file_name[: len(local_file_name) - 4]}ion.csv"
+                                    local_file_name = (
+                                        f"{dates[selected_date]}_fluorescence_aggregation"
+                                        if selected_sensor == "ps2Top"
+                                        else local_file_name
                                     )
-                                )
-                                # pick up here
-                                # Data Analysis and vis section starts
-                                data_analysis(
-                                    plant_detect_df, field_book_name, selected_sensor
-                                )
+                                    download_plant_detection_csv(
+                                        session,
+                                        local_file_name,
+                                        plant_detection_csv_path,
+                                    )
+                                    plant_detect_df = (
+                                        pd.read_csv(f"detect_out/{local_file_name}")
+                                        if selected_sensor != "ps2Top"
+                                        else pd.read_csv(
+                                            f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
+                                        )
+                                    )
+                                    # pick up here
+                                    # Data Analysis and vis section starts
+                                    data_analysis(
+                                        session,
+                                        seasons[selected_season],
+                                        plant_detect_df,
+                                        field_book_name,
+                                        selected_sensor,
+                                        selected_crop,
+                                        dates[selected_date],
+                                        alt_layout,
+                                    )
 
 
 if __name__ == "__main__":
