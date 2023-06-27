@@ -1,3 +1,12 @@
+"""
+Author: Aditya K. 
+Purpose: A dasboard to visualize and download the results of pipeline processing. 
+         Deployed on Streamlit Cloud. 
+
+Some Helpful Hints: 
+If something is not working fine, please take a look at the paths and
+the regexs (especially them! ) first. If they look fine, don't change them!
+"""
 from irods.session import iRODSSession
 from datetime import datetime, timedelta
 import pandas as pd
@@ -16,6 +25,16 @@ def convert_df(df):
 
 
 def get_seasons(session):
+    """A method to download the list of seasons and update them through Cyverse.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+
+    Returns:
+        seasons (dict) : A dictionary that looks like this ->
+        {'The season name to be displayed': 'Actual name we got'}
+    """
     seasons = {}
     try:
         root_collection = session.collections.get("/iplant/home/shared/phytooracle")
@@ -30,6 +49,17 @@ def get_seasons(session):
 
 
 def get_sensors(session, season):
+    """A method to download the sensors available for a given season
+    and update them through Cyverse.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+
+    Returns:
+        sensors (list): A list of the available sensors.
+    """
     sensors = []
     try:
         sensor_collection = session.collections.get(
@@ -40,7 +70,7 @@ def get_sensors(session, season):
         return sensors
     else:
         for sensor in sensor_collection.subcollections:
-            # might need to modify this for extra sensors - ASK
+            # might need to modify this for extra sensors - ASK ABOUT DRONE DATA
             if not re.search("depreceated", sensor.name) and not re.search(
                 "environmentlogger", sensor.name, re.IGNORECASE
             ):
@@ -49,7 +79,22 @@ def get_sensors(session, season):
 
 
 def get_crops(session, season, sensor, alt_layout):
+    """A method to download the crops processed for a given season/sensor combo.
+    and update them through Cyverse.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+        sensor (string): The name of the sensor to be used.
+        alt_layout (boolean): A bool to indicate if the user selected a season that
+        has an alternate data organization layout.
+
+    Returns:
+        crops: A list of crops that were processed.
+    """
     crops = []
+    # Alt layout don't have a wrapper folder with the name of the crop
     if not alt_layout:
         try:
             season_crop_collection = session.collections.get(
@@ -67,6 +112,20 @@ def get_crops(session, season, sensor, alt_layout):
 
 
 def get_dates(session, season, sensor, crop):
+    """A method to get a list of dates processed for a given
+    season/sensor/crop combo from cyverse data store.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+        sensor (string): The name of the sensor to be used.
+        crop (string): The name of the crop to be accessed.
+
+    Returns:
+        dates (dict) : A dictionary that looks like this ->
+        {'The date to be displayed (YYYY-MM-DD)': 'Actual date we got (contains time)'}
+    """
     dates = {}
     try:
         if crop != "":
@@ -92,12 +151,30 @@ def get_dates(session, season, sensor, crop):
 def get_plant_detection_csv_path(
     session, season, sensor, crop, dates, selected_date, alt_layout
 ):
+    """A method to get the location of the tarball that should
+    have the plant detection csv. Only RGB and FLIR sensors have this
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+        sensor (string): The name of the sensor to be used.
+        alt_layout (boolean): A bool to indicate if the user selected a season that
+        has an alternate data organization layout.
+        dates (dictionary): The dictionary returned by the get_dates() method.
+        selected_date (string): The date selected by the user (no time)
+
+    Returns:
+        string: path
+    """
     if re.search("3d", sensor, re.IGNORECASE):
+        # Download CSV from the RGB sensor level 1
         dates_RGB = get_dates(session, season, "stereoTop", crop)
         date_RGB = ""
         date_3D_obj = datetime.strptime(selected_date, "%Y-%m-%d")
         for date_id in dates_RGB.keys():
             dte_obj = datetime.strptime(date_id, "%Y-%m-%d")
+            # to check neighboring dates in case of no exact match
             if (date_3D_obj == dte_obj) or (
                 date_3D_obj == dte_obj + timedelta(days=1)
                 or date_3D_obj == dte_obj - timedelta(days=1)
@@ -137,6 +214,17 @@ def get_plant_detection_csv_path(
 
 
 def download_fieldbook(session, season):
+    """Download the fieldbook for the specified season
+    if it is not already in the cache.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+
+    Returns:
+        string: Name of the fieldbook file, nothing if nothing is found
+    """
     season_file_collection = session.collections.get(
         f"/iplant/home/shared/phytooracle/{season}"
     )
@@ -156,6 +244,13 @@ def download_fieldbook(session, season):
 
 
 def download_plant_detection_csv(session, local_file_name, plant_detection_csv_path):
+    """Download and extract the plant detection csv from the file name
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        local_file_name (string): Name of the plant detection CSV if stored locally
+        plant_detection_csv_path (string): Path on cyverse
+    """
     if not (os.path.exists(f"detect_out/{local_file_name}")):
         session.data_objects.get(
             plant_detection_csv_path, "local_file_delete.tar", force=True
@@ -168,6 +263,21 @@ def download_plant_detection_csv(session, local_file_name, plant_detection_csv_p
 def data_analysis(
     session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
 ):
+    """Begin Analyzing the plant detection data. Start by making the fieldbook
+    dataframe.
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+        plant_detect_df (dataframe): Pandas dataframe made using the plant detection CSV
+        field_book_name (string): Name of the fielbook file.
+        sensor (string): The name of the sensor to be used.
+        layout (boolean): A bool to indicate if the user selected a season that
+        has an alternate data organization layout.
+        crop (string): Selected crop.
+        date (string): Specified date.
+    """
+
     # make field book dataframe based on its extension
     if field_book_name.split(".")[1] == "xlsx":
         try:
@@ -194,11 +304,28 @@ def data_analysis(
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
     if "3D" in sensor or "ps2Top" in sensor:
-        result = extra_processing(session, season, result, sensor, crop, date, layout)
+        # make this equal to result
+        extra_processing(session, season, result, sensor, crop, date, layout)
     create_filter(combined_data=result, sensor=sensor)
 
 
 def extra_processing(session, season, combined_df, sensor, crop, date, alt_layout):
+    """This part deals with downloading files and doing extra work for the
+    3D and PSII sensors, that don't have geolocation data stored in one file.
+
+    Args:
+        session (irodsSession): A session object that allows the program to query data
+        from the Cyverse datastore.
+        season (string): The actual name that appears on cyverse for the selected season
+        plant_detect_df (dataframe): Pandas dataframe made using the plant detection CSV
+        combined_df: Pandas dataframe that is basically fieldbook + plant detection
+        sensor (string): The name of the sensor to be used.
+        alt_layout (boolean): A bool to indicate if the user selected a season that
+        has an alternate data organization layout.
+        crop (string): Selected crop.
+        date (string): Specified date.
+    """
+
     # NEED TO MAKE THIS WORK FOR ALT LAYOUT
     if "3D" in sensor:
         try:
@@ -229,6 +356,14 @@ def extra_processing(session, season, combined_df, sensor, crop, date, alt_layou
 
 
 def combine_all_csv(path):
+    """Combine all the CSVs in a directory into a single pandas dataframe
+    Args:
+        path (string):
+
+    Returns:
+        dataframe: combined data
+    """
+
     all_files = glob.glob(path + "/*.csv")
     li = []
 
@@ -241,41 +376,12 @@ def combine_all_csv(path):
 
 
 def create_filter(combined_data, sensor):
-    # filter_options = {
-    #     "ps2Top": ["Treatment", "Plot", "Rep", "Range", "Column", "Genotype", "FV/FM"],
-    #     "stereoTop": [
-    #         "Treatment",
-    #         "Plot",
-    #         "Rep",
-    #         "Range",
-    #         "Column",
-    #         "Genotype",
-    #         "Bounding_area_m2",
-    #     ],
-    #     "flirIrCamera": [
-    #         "Treatment",
-    #         "Plot",
-    #         "Rep",
-    #         "Range",
-    #         "Column",
-    #         "Genotype",
-    #         "Median",
-    #         "Mean",
-    #         "Var",
-    #         "std_dev",
-    #     ],
-    #     "scanner3DTop": [
-    #         "Treatment",
-    #         "Plot",
-    #         "Rep",
-    #         "Range",
-    #         "Column",
-    #         "Genotype",
-    #         "axis_aligned_bounding_volume",
-    #         "oriented_bounding_volume",
-    #         "hull_volume",
-    #     ],
-    # }
+    """Creates a dynamic fiter
+
+    Args:
+        combined_data (pandas df): Everything in this dataframe
+        sensor (string): selected sensor
+    """
     filter_options = []
     for column_name in combined_data.columns:
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
@@ -311,6 +417,12 @@ def create_filter(combined_data, sensor):
 
 
 def get_visuals(filtered_df, column_name):
+    """Make the map plot, as well as the histogram based on the selected filed
+
+    Args:
+        filtered_df (_type_): Pandas df that has Co-ordinates +  selected field
+        column_name (_type_): Selected column
+    """
     # Emmanuel's API key, Might need to change this
     px.set_mapbox_access_token(
         "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
@@ -455,7 +567,6 @@ def main():
                                             f"fluorescence_aggregation_out/{dates[selected_date]}_fluorescence_aggregation.csv"
                                         )
                                     )
-                                    # pick up here
                                     # Data Analysis and vis section starts
                                     data_analysis(
                                         session,
