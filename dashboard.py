@@ -304,9 +304,9 @@ def data_analysis(
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
     if "3D" in sensor or "ps2Top" in sensor:
-        # make this equal to result
-        extra_processing(session, season, result, sensor, crop, date, layout)
-    create_filter(combined_data=result, sensor=sensor)
+        result = extra_processing(session, season, result, sensor, crop, date, layout)
+    if not result.empty:
+        create_filter(combined_data=result, sensor=sensor)
 
 
 def extra_processing(session, season, combined_df, sensor, crop, date, alt_layout):
@@ -329,33 +329,56 @@ def extra_processing(session, season, combined_df, sensor, crop, date, alt_layou
     # NEED TO MAKE THIS WORK FOR ALT LAYOUT
     if "3D" in sensor:
         try:
-            if not (os.path.exists(f"3d_volumes_entropy_v009")):
-                collection = session.collections.get(
-                    f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out"
-                )
-                for file in collection.data_objects:
-                    if re.search("volumes_entropy", file.name):
-                        session.data_objects.get(
-                            f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/"
-                            f"{crop}/{date}/individual_plants_out/{file.name}",
-                            "local_file_delete.tar",
-                            force=True,
-                        )
-                        break
-                with tarfile.open("local_file_delete.tar", "r") as tar:
-                    tar.extractall()
-                os.remove("local_file_delete.tar")
-            ind_plant_df = combine_all_csv("3d_volumes_entropy_v009")
-            st.dataframe(ind_plant_df)
-        except:
+            season_no = season.split("_")[1]
+            download_extra_3D_data(session, season, season_no, sensor, crop, date)
+            ind_plant_df = combine_all_csv(
+                "3d_volumes_entropy_v009", sensor, crop, date
+            )
+            plant_clustering_df = pd.read_csv(
+                f"plant_clustering/season_{season_no}_clustering.csv"
+            ).loc[:, ["plant_name", "lat", "lon"]]
+            combined_df = combined_df.merge(plant_clustering_df, on=["lat", "lon"])
+            combined_df = combined_df.merge(ind_plant_df, on="plant_name")
+            return combined_df
+        except Exception as e:
             st.write(
-                f"The 3D scans for this season were processed to the level required for any visuals."
+                f"The 3D scans for this season were not processed to the level required for any visuals."
                 f"Please try any other sensor/season. "
             )
-            return
+            st.write(e)
+            return pd.DataFrame()
 
 
-def combine_all_csv(path):
+def download_extra_3D_data(session, season, season_no, sensor, crop, date):
+    if not (os.path.exists(f"3d_volumes_entropy_v009")):
+        collection = session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/"
+        )
+        for file in collection.data_objects:
+            if re.search("volumes_entropy", file.name):
+                session.data_objects.get(
+                    f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/"
+                    f"{crop}/{date}/individual_plants_out/{file.name}",
+                    "local_file_delete.tar",
+                    force=True,
+                )
+                break
+        with tarfile.open("local_file_delete.tar", "r") as tar:
+            tar.extractall()
+        os.remove("local_file_delete.tar")
+    if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
+        if not os.path.exists("plant_clustering"):
+            os.makedirs("plant_clustering")
+        session.data_objects.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
+            f"season_{season_no}_plant_detection_combined/"
+            f"season_{season_no}_clustering.csv",
+            f"plant_clustering/season_{season_no}_clustering.csv",
+            force=True,
+        )
+
+
+def combine_all_csv(path, sensor, crop, date):
     """Combine all the CSVs in a directory into a single pandas dataframe
     Args:
         path (string):
@@ -363,16 +386,23 @@ def combine_all_csv(path):
     Returns:
         dataframe: combined data
     """
+    if not (os.path.exists(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")):
+        if not os.path.exists("volumes_entropy"):
+            os.makedirs("volumes_entropy")
+        all_files = glob.glob(path + "/*.csv")
+        li = []
 
-    all_files = glob.glob(path + "/*.csv")
-    li = []
+        for filename in all_files:
+            df = pd.read_csv(filename, index_col=None, header=0)
+            li.append(df)
 
-    for filename in all_files:
-        df = pd.read_csv(filename, index_col=None, header=0)
-        li.append(df)
-
-    result_frame = pd.concat(li, axis=0, ignore_index=True)
-    return frame
+        result_frame = pd.concat(li, axis=0, ignore_index=True)
+        result_frame.to_csv(
+            f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv", index=False
+        )
+        return result_frame
+    else:
+        return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
 def create_filter(combined_data, sensor):
