@@ -16,6 +16,7 @@ import re
 import os
 import tarfile
 import glob
+import shutil  # remove filled directory to manage
 
 
 @st.cache_data
@@ -48,6 +49,7 @@ def get_seasons(session):
         return seasons
 
 
+@st.cache_data
 def get_sensors(session, season):
     """A method to download the sensors available for a given season
     and update them through Cyverse.
@@ -78,6 +80,7 @@ def get_sensors(session, season):
         return sensors
 
 
+@st.cache_data
 def get_crops(session, season, sensor, alt_layout):
     """A method to download the crops processed for a given season/sensor combo.
     and update them through Cyverse.
@@ -111,6 +114,7 @@ def get_crops(session, season, sensor, alt_layout):
     return crops
 
 
+@st.cache_data
 def get_dates(session, season, sensor, crop):
     """A method to get a list of dates processed for a given
     season/sensor/crop combo from cyverse data store.
@@ -148,6 +152,7 @@ def get_dates(session, season, sensor, crop):
         return dates
 
 
+@st.cache_data
 def get_plant_detection_csv_path(
     session, season, sensor, crop, dates, selected_date, alt_layout
 ):
@@ -213,6 +218,7 @@ def get_plant_detection_csv_path(
     return ""
 
 
+@st.cache_data
 def download_fieldbook(session, season):
     """Download the fieldbook for the specified season
     if it is not already in the cache.
@@ -243,6 +249,7 @@ def download_fieldbook(session, season):
     return ""
 
 
+@st.cache_data
 def download_plant_detection_csv(session, local_file_name, plant_detection_csv_path):
     """Download and extract the plant detection csv from the file name
     Args:
@@ -279,6 +286,7 @@ def data_analysis(
     """
 
     # make field book dataframe based on its extension
+    print("data_analysis")
     if field_book_name.split(".")[1] == "xlsx":
         try:
             field_book_df = pd.read_excel(
@@ -306,6 +314,12 @@ def data_analysis(
     if "3D" in sensor or "ps2Top" in sensor:
         result = extra_processing(session, season, result, sensor, crop, date, layout)
     if not result.empty:
+        # To drop duplicate genotype columns
+        result = result.drop("genotype_y", axis=1, errors="ignore")
+        result = result.rename(columns={"genotype_x": "genotype"}, errors="ignore")
+        # to drop min/max_x/y/z
+        result.drop(list(result.filter(regex="min_?|max_?")), axis=1, inplace=True)
+        # st.dataframe(result)
         create_filter(combined_data=result, sensor=sensor)
 
 
@@ -337,8 +351,9 @@ def extra_processing(session, season, combined_df, sensor, crop, date, alt_layou
             plant_clustering_df = pd.read_csv(
                 f"plant_clustering/season_{season_no}_clustering.csv"
             ).loc[:, ["plant_name", "lat", "lon"]]
-            combined_df = combined_df.merge(plant_clustering_df, on=["lat", "lon"])
-            combined_df = combined_df.merge(ind_plant_df, on="plant_name")
+            # Taking very long time - 3 mins (try merging plant_clustering with ind first)
+            ind_plant_df = ind_plant_df.merge(plant_clustering_df, on="plant_name")
+            combined_df = combined_df.merge(ind_plant_df, on=["lat", "lon"])
             return combined_df
         except Exception as e:
             st.write(
@@ -400,6 +415,7 @@ def combine_all_csv(path, sensor, crop, date):
         result_frame.to_csv(
             f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv", index=False
         )
+        shutil.rmtree("3d_volumes_entropy_v009")
         return result_frame
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
@@ -450,8 +466,8 @@ def get_visuals(filtered_df, column_name):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
-        filtered_df (_type_): Pandas df that has Co-ordinates +  selected field
-        column_name (_type_): Selected column
+        filtered_df (dataframe): Pandas df that has Co-ordinates +  selected field
+        column_name (dataframe): Selected column
     """
     # Emmanuel's API key, Might need to change this
     px.set_mapbox_access_token(
@@ -480,9 +496,9 @@ def get_visuals(filtered_df, column_name):
 
     plotly_col.plotly_chart(fig, use_container_width=True)
 
-    dist = px.histogram(filtered_df, x=column_name, color=column_name)
-    dist.update_layout(title=f"{column_name} distribution", autosize=True)
-    dist_col.plotly_chart(dist, use_container_width=True)
+    # dist = px.histogram(filtered_df, x=column_name, color=column_name)
+    # dist.update_layout(title=f"{column_name} distribution", autosize=True)
+    # dist_col.plotly_chart(dist, use_container_width=True)
 
 
 def main():
