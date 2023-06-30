@@ -318,7 +318,12 @@ def data_analysis(
         result = result.rename(columns={"genotype_x": "genotype"}, errors="ignore")
         # to drop min/max_x/y/z
         result.drop(list(result.filter(regex="min_?|max_?")), axis=1, inplace=True)
-        # st.dataframe(result)
+        # to drop empty index col
+        result.drop(
+            result.columns[result.columns.str.contains("unnamed", case=False)],
+            axis=1,
+            inplace=True,
+        )
         create_filter(combined_data=result, sensor=sensor)
 
 
@@ -341,10 +346,11 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
     """
 
     # NEED TO MAKE THIS WORK FOR ALT LAYOUT
+    season_no = season.split("_")[1]
     if "3D" in sensor:
         try:
-            season_no = season.split("_")[1]
             download_extra_3D_data(_session, season, season_no, sensor, crop, date)
+            download_plant_clustering_csv(_session, season, season_no)
             ind_plant_df = combine_all_csv(
                 "3d_volumes_entropy_v009", sensor, crop, date
             )
@@ -360,8 +366,15 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
                 f"The 3D scans for this season were not processed to the level required for any visuals."
                 f"Please try any other sensor/season. "
             )
-            st.write(e)
             return pd.DataFrame()
+    # for PSII
+    else:
+        download_plant_clustering_csv(_session, season, season_no)
+        plant_clustering_df = pd.read_csv(
+            f"plant_clustering/season_{season_no}_clustering.csv"
+        ).loc[:, ["plot", "lat", "lon"]]
+        combined_df = combined_df.merge(plant_clustering_df, on="plot")
+        return combined_df
 
 
 def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
@@ -381,6 +394,9 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
         with tarfile.open("local_file_delete.tar", "r") as tar:
             tar.extractall()
         os.remove("local_file_delete.tar")
+
+
+def download_plant_clustering_csv(_session, season, season_no):
     if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
         if not os.path.exists("plant_clustering"):
             os.makedirs("plant_clustering")
@@ -602,6 +618,7 @@ def main():
                                         if selected_sensor == "ps2Top"
                                         else local_file_name
                                     )
+
                                     download_plant_detection_csv(
                                         _session,
                                         local_file_name,
