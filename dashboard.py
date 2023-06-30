@@ -369,12 +369,18 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             return pd.DataFrame()
     # for PSII
     else:
-        download_plant_clustering_csv(_session, season, season_no)
-        plant_clustering_df = pd.read_csv(
-            f"plant_clustering/season_{season_no}_clustering.csv"
-        ).loc[:, ["plot", "lat", "lon"]]
-        combined_df = combined_df.merge(plant_clustering_df, on="plot")
-        return combined_df
+        try:
+            download_plant_clustering_csv(_session, season, season_no)
+            plant_clustering_df = pd.read_csv(
+                f"plant_clustering/season_{season_no}_clustering.csv"
+            ).loc[:, ["plot", "lat", "lon"]]
+            combined_df = combined_df.merge(plant_clustering_df, on="plot")
+            return combined_df
+        except:
+            st.write(
+                f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
+            )
+            return pd.DataFrame()
 
 
 def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
