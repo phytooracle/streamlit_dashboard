@@ -16,7 +16,7 @@ import re
 import os
 import tarfile
 import glob
-
+from streamlit_modal import Modal
 
 @st.cache_data
 def convert_df(df):
@@ -354,6 +354,7 @@ def download_extra_3D_data(session, season, season_no, sensor, crop, date):
         collection = session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/"
         )
+        files_3d = []
         for file in collection.data_objects:
             if re.search("volumes_entropy", file.name):
                 session.data_objects.get(
@@ -362,6 +363,9 @@ def download_extra_3D_data(session, season, season_no, sensor, crop, date):
                     "local_file_delete.tar",
                     force=True,
                 )
+                # add file names to collection
+                files_3d.append(f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/{file.name}")
+
                 break
         with tarfile.open("local_file_delete.tar", "r") as tar:
             tar.extractall()
@@ -376,6 +380,7 @@ def download_extra_3D_data(session, season, season_no, sensor, crop, date):
             f"plant_clustering/season_{season_no}_clustering.csv",
             force=True,
         )
+
 
 
 def combine_all_csv(path, sensor, crop, date):
@@ -404,6 +409,21 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
+def create_button_list(crops):
+    #make change to accomodate filters bc table is not file
+    modal = Modal(key="demo", title='point-cloud')
+    buttons =[]
+    i = 1
+    for crop in range(crops): #change crop to files_3d 
+        b = st.button("{i}")
+        i+=1
+        if b:
+            modal.open()
+            if modal.is_open():
+                st.write("insert point cloud here")
+                # st.pydeck_chart(pdk.Deck(map_style=None),
+                #                 layers = pdk.Layer('point-cloud',
+                #                                    data='href')) #add code for href
 
 def create_filter(combined_data, sensor):
     """Creates a dynamic fiter
@@ -418,6 +438,11 @@ def create_filter(combined_data, sensor):
             filter_options.append(column_name)
     selected_column_name = filter_sec.selectbox("Filter", filter_options)
     col1.header("All Data")
+
+    # Create and add column of buttons for all data
+    buttons_cd = create_button_list(len(combined_data))
+    combined_data.insert(0, "Vizualize", buttons_cd, False)
+
     col1.dataframe(combined_data)
     selected_columns = []
     exact_column_name = selected_column_name
@@ -430,6 +455,11 @@ def create_filter(combined_data, sensor):
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     col2.header("Filtered Data")
+
+    # Add button column
+    buttons_fd = create_button_list(len(filtered_df))
+    filtered_df.insert(0, "Vizualize", buttons_fd, False)
+
     col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
@@ -503,7 +533,8 @@ def main():
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
     st.title("Dashboard")
-    global col1, col2, filter_sec, vis_container, plotly_col, dist_col
+    global col1, col2, filter_sec, vis_container, plotly_col, dist_col, files_3d
+    files_3d= []
     filter_sec = st.container()
     vis_container = st.container()
     plotly_col, dist_col = vis_container.columns(2)
