@@ -16,6 +16,7 @@ import re
 import os
 import tarfile
 import glob
+import shutil  # remove filled directory to manage
 
 
 @st.cache_data
@@ -24,11 +25,11 @@ def convert_df(df):
     return df.to_csv(index=False).encode("utf-8")
 
 
-def get_seasons(session):
+def get_seasons(_session):
     """A method to download the list of seasons and update them through Cyverse.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
 
     Returns:
@@ -37,7 +38,7 @@ def get_seasons(session):
     """
     seasons = {}
     try:
-        root_collection = session.collections.get("/iplant/home/shared/phytooracle")
+        root_collection = _session.collections.get("/iplant/home/shared/phytooracle")
     except:
         st.write("No data present on Cyverse datastore for any season. ")
         return seasons
@@ -48,12 +49,13 @@ def get_seasons(session):
         return seasons
 
 
-def get_sensors(session, season):
+@st.cache_data
+def get_sensors(_session, season):
     """A method to download the sensors available for a given season
     and update them through Cyverse.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
 
@@ -62,7 +64,7 @@ def get_sensors(session, season):
     """
     sensors = []
     try:
-        sensor_collection = session.collections.get(
+        sensor_collection = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_1"
         )
     except:
@@ -78,12 +80,13 @@ def get_sensors(session, season):
         return sensors
 
 
-def get_crops(session, season, sensor, alt_layout):
+@st.cache_data
+def get_crops(_session, season, sensor, alt_layout):
     """A method to download the crops processed for a given season/sensor combo.
     and update them through Cyverse.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
         sensor (string): The name of the sensor to be used.
@@ -97,7 +100,7 @@ def get_crops(session, season, sensor, alt_layout):
     # Alt layout don't have a wrapper folder with the name of the crop
     if not alt_layout:
         try:
-            season_crop_collection = session.collections.get(
+            season_crop_collection = _session.collections.get(
                 f"/iplant/home/shared/phytooracle/{season}/level_1/{sensor}"
             )
         except:
@@ -111,12 +114,13 @@ def get_crops(session, season, sensor, alt_layout):
     return crops
 
 
-def get_dates(session, season, sensor, crop):
+@st.cache_data
+def get_dates(_session, season, sensor, crop):
     """A method to get a list of dates processed for a given
     season/sensor/crop combo from cyverse data store.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
         sensor (string): The name of the sensor to be used.
@@ -129,11 +133,11 @@ def get_dates(session, season, sensor, crop):
     dates = {}
     try:
         if crop != "":
-            season_date_collection = session.collections.get(
+            season_date_collection = _session.collections.get(
                 f"/iplant/home/shared/phytooracle/{season}/level_1/{sensor}/{crop}/"
             )
         else:
-            season_date_collection = session.collections.get(
+            season_date_collection = _session.collections.get(
                 f"/iplant/home/shared/phytooracle/{season}/level_1/{sensor}/"
             )
     except:
@@ -148,14 +152,15 @@ def get_dates(session, season, sensor, crop):
         return dates
 
 
+@st.cache_data
 def get_plant_detection_csv_path(
-    session, season, sensor, crop, dates, selected_date, alt_layout
+    _session, season, sensor, crop, dates, selected_date, alt_layout
 ):
     """A method to get the location of the tarball that should
     have the plant detection csv. Only RGB and FLIR sensors have this
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
         sensor (string): The name of the sensor to be used.
@@ -169,7 +174,7 @@ def get_plant_detection_csv_path(
     """
     if re.search("3d", sensor, re.IGNORECASE):
         # Download CSV from the RGB sensor level 1
-        dates_RGB = get_dates(session, season, "stereoTop", crop)
+        dates_RGB = get_dates(_session, season, "stereoTop", crop)
         date_RGB = ""
         date_3D_obj = datetime.strptime(selected_date, "%Y-%m-%d")
         for date_id in dates_RGB.keys():
@@ -200,7 +205,7 @@ def get_plant_detection_csv_path(
             f"{season}/level_1/"
             f"{sensor}/{crop}/{date}"
         )
-    date_directory = session.collections.get(date_directory_path)
+    date_directory = _session.collections.get(date_directory_path)
     # To go through the processed files for the date to finde the plant detection zip
     for files in date_directory.data_objects:
         if sensor != "ps2Top":
@@ -213,19 +218,20 @@ def get_plant_detection_csv_path(
     return ""
 
 
-def download_fieldbook(session, season):
+@st.cache_data
+def download_fieldbook(_session, season):
     """Download the fieldbook for the specified season
     if it is not already in the cache.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
 
     Returns:
         string: Name of the fieldbook file, nothing if nothing is found
     """
-    season_file_collection = session.collections.get(
+    season_file_collection = _session.collections.get(
         f"/iplant/home/shared/phytooracle/{season}"
     )
     for file in season_file_collection.data_objects:
@@ -235,7 +241,7 @@ def download_fieldbook(session, season):
             if not (os.path.exists(f"field_books/{file.name}")):
                 if not os.path.exists("field_books"):
                     os.makedirs("field_books")
-                session.data_objects.get(
+                _session.data_objects.get(
                     f"/iplant/home/shared/phytooracle/{season}/{file.name}",
                     "field_books",
                 )
@@ -243,16 +249,17 @@ def download_fieldbook(session, season):
     return ""
 
 
-def download_plant_detection_csv(session, local_file_name, plant_detection_csv_path):
+@st.cache_data
+def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_path):
     """Download and extract the plant detection csv from the file name
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         local_file_name (string): Name of the plant detection CSV if stored locally
         plant_detection_csv_path (string): Path on cyverse
     """
     if not (os.path.exists(f"detect_out/{local_file_name}")):
-        session.data_objects.get(
+        _session.data_objects.get(
             plant_detection_csv_path, "local_file_delete.tar", force=True
         )
         with tarfile.open("local_file_delete.tar", "r") as tar:
@@ -261,12 +268,12 @@ def download_plant_detection_csv(session, local_file_name, plant_detection_csv_p
 
 
 def data_analysis(
-    session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
+    _session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
 ):
     """Begin Analyzing the plant detection data. Start by making the fieldbook
     dataframe.
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
         plant_detect_df (dataframe): Pandas dataframe made using the plant detection CSV
@@ -304,17 +311,29 @@ def data_analysis(
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
     if "3D" in sensor or "ps2Top" in sensor:
-        result = extra_processing(session, season, result, sensor, crop, date, layout)
+        result = extra_processing(_session, season, result, sensor, crop, date, layout)
     if not result.empty:
+        # To drop duplicate genotype columns
+        result = result.drop("genotype_y", axis=1, errors="ignore")
+        result = result.rename(columns={"genotype_x": "genotype"}, errors="ignore")
+        # to drop min/max_x/y/z
+        result.drop(list(result.filter(regex="min_?|max_?")), axis=1, inplace=True)
+        # to drop empty index col
+        result.drop(
+            result.columns[result.columns.str.contains("unnamed", case=False)],
+            axis=1,
+            inplace=True,
+        )
         create_filter(combined_data=result, sensor=sensor)
 
 
-def extra_processing(session, season, combined_df, sensor, crop, date, alt_layout):
+@st.cache_resource
+def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layout):
     """This part deals with downloading files and doing extra work for the
     3D and PSII sensors, that don't have geolocation data stored in one file.
 
     Args:
-        session (irodsSession): A session object that allows the program to query data
+        _session (irodsSession): A _session object that allows the program to query data
         from the Cyverse datastore.
         season (string): The actual name that appears on cyverse for the selected season
         plant_detect_df (dataframe): Pandas dataframe made using the plant detection CSV
@@ -327,36 +346,51 @@ def extra_processing(session, season, combined_df, sensor, crop, date, alt_layou
     """
 
     # NEED TO MAKE THIS WORK FOR ALT LAYOUT
+    season_no = season.split("_")[1]
     if "3D" in sensor:
         try:
-            season_no = season.split("_")[1]
-            download_extra_3D_data(session, season, season_no, sensor, crop, date)
+            download_extra_3D_data(_session, season, season_no, sensor, crop, date)
+            download_plant_clustering_csv(_session, season, season_no)
             ind_plant_df = combine_all_csv(
                 "3d_volumes_entropy_v009", sensor, crop, date
             )
             plant_clustering_df = pd.read_csv(
                 f"plant_clustering/season_{season_no}_clustering.csv"
             ).loc[:, ["plant_name", "lat", "lon"]]
-            combined_df = combined_df.merge(plant_clustering_df, on=["lat", "lon"])
-            combined_df = combined_df.merge(ind_plant_df, on="plant_name")
+            # Taking very long time - 3 mins (try merging plant_clustering with ind first)
+            ind_plant_df = ind_plant_df.merge(plant_clustering_df, on="plant_name")
+            combined_df = combined_df.merge(ind_plant_df, on=["lat", "lon"])
             return combined_df
         except Exception as e:
             st.write(
                 f"The 3D scans for this season were not processed to the level required for any visuals."
                 f"Please try any other sensor/season. "
             )
-            st.write(e)
+            return pd.DataFrame()
+    # for PSII
+    else:
+        try:
+            download_plant_clustering_csv(_session, season, season_no)
+            plant_clustering_df = pd.read_csv(
+                f"plant_clustering/season_{season_no}_clustering.csv"
+            ).loc[:, ["plot", "lat", "lon"]]
+            combined_df = combined_df.merge(plant_clustering_df, on="plot")
+            return combined_df
+        except:
+            st.write(
+                f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
+            )
             return pd.DataFrame()
 
 
-def download_extra_3D_data(session, season, season_no, sensor, crop, date):
+def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
     if not (os.path.exists(f"3d_volumes_entropy_v009")):
-        collection = session.collections.get(
+        collection = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/"
         )
         for file in collection.data_objects:
             if re.search("volumes_entropy", file.name):
-                session.data_objects.get(
+                _session.data_objects.get(
                     f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/"
                     f"{crop}/{date}/individual_plants_out/{file.name}",
                     "local_file_delete.tar",
@@ -366,10 +400,13 @@ def download_extra_3D_data(session, season, season_no, sensor, crop, date):
         with tarfile.open("local_file_delete.tar", "r") as tar:
             tar.extractall()
         os.remove("local_file_delete.tar")
+
+
+def download_plant_clustering_csv(_session, season, season_no):
     if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
         if not os.path.exists("plant_clustering"):
             os.makedirs("plant_clustering")
-        session.data_objects.get(
+        _session.data_objects.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
             f"season_{season_no}_plant_detection_combined/"
             f"season_{season_no}_clustering.csv",
@@ -378,6 +415,7 @@ def download_extra_3D_data(session, season, season_no, sensor, crop, date):
         )
 
 
+@st.cache_resource
 def combine_all_csv(path, sensor, crop, date):
     """Combine all the CSVs in a directory into a single pandas dataframe
     Args:
@@ -400,6 +438,7 @@ def combine_all_csv(path, sensor, crop, date):
         result_frame.to_csv(
             f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv", index=False
         )
+        shutil.rmtree("3d_volumes_entropy_v009")
         return result_frame
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
@@ -450,8 +489,8 @@ def get_visuals(filtered_df, column_name):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
-        filtered_df (_type_): Pandas df that has Co-ordinates +  selected field
-        column_name (_type_): Selected column
+        filtered_df (dataframe): Pandas df that has Co-ordinates +  selected field
+        column_name (dataframe): Selected column
     """
     # Emmanuel's API key, Might need to change this
     px.set_mapbox_access_token(
@@ -480,9 +519,9 @@ def get_visuals(filtered_df, column_name):
 
     plotly_col.plotly_chart(fig, use_container_width=True)
 
-    dist = px.histogram(filtered_df, x=column_name, color=column_name)
-    dist.update_layout(title=f"{column_name} distribution", autosize=True)
-    dist_col.plotly_chart(dist, use_container_width=True)
+    # dist = px.histogram(filtered_df, x=column_name, color=column_name)
+    # dist.update_layout(title=f"{column_name} distribution", autosize=True)
+    # dist_col.plotly_chart(dist, use_container_width=True)
 
 
 def main():
@@ -508,9 +547,9 @@ def main():
     vis_container = st.container()
     plotly_col, dist_col = vis_container.columns(2)
     col1, col2 = st.columns(2)
-    # To establish an irods session
+    # To establish an irods _session
     try:
-        session = iRODSSession(
+        _session = iRODSSession(
             host="data.cyverse.org",
             port=1247,
             user="anonymous",
@@ -518,9 +557,9 @@ def main():
             zone="iplant",
         )
     except:
-        st.write("Something went wrong establishing a iRODS session. Contact support.")
+        st.write("Something went wrong establishing a iRODS _session. Contact support.")
     else:
-        seasons = get_seasons(session)
+        seasons = get_seasons(_session)
         if seasons:
             season_display_names = sorted(
                 seasons.keys(), key=lambda x: int(x.split(" ")[1])
@@ -535,11 +574,11 @@ def main():
                 if (selected_season == "Season 10" or selected_season == "Season 11")
                 else False
             )
-            sensors = get_sensors(session, seasons[selected_season])
+            sensors = get_sensors(_session, seasons[selected_season])
             if sensors:
                 selected_sensor = st.sidebar.selectbox("Select a sensor: ", sensors)
                 crops = get_crops(
-                    session, seasons[selected_season], selected_sensor, alt_layout
+                    _session, seasons[selected_season], selected_sensor, alt_layout
                 )
                 if alt_layout or crops:
                     selected_crop = ""
@@ -548,7 +587,7 @@ def main():
                             "Select a crop: ", sorted(crops)
                         )
                 dates = get_dates(
-                    session, seasons[selected_season], selected_sensor, selected_crop
+                    _session, seasons[selected_season], selected_sensor, selected_crop
                 )
                 if dates:
                     display_dates = sorted(dates.keys())
@@ -556,7 +595,7 @@ def main():
                         "Select a date: ", display_dates
                     )
                     plant_detection_csv_path = get_plant_detection_csv_path(
-                        session,
+                        _session,
                         seasons[selected_season],
                         selected_sensor,
                         selected_crop,
@@ -571,7 +610,7 @@ def main():
                                 "This might take some time. Please wait..."
                             ):
                                 field_book_name = download_fieldbook(
-                                    session, seasons[selected_season]
+                                    _session, seasons[selected_season]
                                 )
                                 if field_book_name == "":
                                     st.write("No fieldbook for this season was found")
@@ -585,8 +624,9 @@ def main():
                                         if selected_sensor == "ps2Top"
                                         else local_file_name
                                     )
+
                                     download_plant_detection_csv(
-                                        session,
+                                        _session,
                                         local_file_name,
                                         plant_detection_csv_path,
                                     )
@@ -599,7 +639,7 @@ def main():
                                     )
                                     # Data Analysis and vis section starts
                                     data_analysis(
-                                        session,
+                                        _session,
                                         seasons[selected_season],
                                         plant_detect_df,
                                         field_book_name,
