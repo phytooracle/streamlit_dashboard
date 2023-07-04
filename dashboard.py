@@ -16,7 +16,7 @@ import re
 import os
 import tarfile
 import glob
-import shutil  # remove filled directory to manage
+import shutil  # remove filled directory to manage space
 
 
 @st.cache_data
@@ -591,8 +591,8 @@ def main():
                 )
                 if dates:
                     display_dates = sorted(dates.keys())
-                    selected_date = st.sidebar.selectbox(
-                        "Select a date: ", display_dates
+                    selected_date = st.sidebar.select_slider(
+                        "Select a date: ", options=display_dates
                     )
                     plant_detection_csv_path = get_plant_detection_csv_path(
                         _session,
