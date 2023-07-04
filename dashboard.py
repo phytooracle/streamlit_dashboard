@@ -455,7 +455,7 @@ def create_filter(combined_data, sensor):
     for column_name in combined_data.columns:
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
-    selected_column_name = filter_sec.selectbox("Filter", filter_options)
+    selected_column_name = filter_sec.selectbox("Filter", sorted(filter_options))
     col1.header("All Data")
     col1.dataframe(combined_data)
     selected_columns = []
