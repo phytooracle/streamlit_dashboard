@@ -17,6 +17,10 @@ import os
 import tarfile
 import glob
 import shutil  # remove filled directory to manage space
+from streamlit_modal import Modal
+import json
+import fetch_ipc as fipc
+import pydeck as pdk
 
 
 @st.cache_data
@@ -330,7 +334,7 @@ def data_analysis(
             f"/iplant/home/shared/phytooracle/dashboard_cache/{sensor}/combined_data/{season}_{date}_all.csv",
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
-        create_filter(combined_data=result, sensor=sensor)
+        create_filter(combined_data=result, sensor=sensor, season=season)
 
 
 @st.cache_resource
@@ -394,6 +398,7 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
         collection = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/"
         )
+        files_3d = []
         for file in collection.data_objects:
             if re.search("volumes_entropy", file.name):
                 _session.data_objects.get(
@@ -402,6 +407,8 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
                     "local_file_delete.tar",
                     force=True,
                 )
+                # add file names to collection
+                files_3d.append(f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/{file.name}")
                 break
         with tarfile.open("local_file_delete.tar", "r") as tar:
             tar.extractall()
@@ -449,8 +456,31 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
+def create_button_list(file_fetcher):
+    #make change to accomodate filters bc table is not file
+    table_len = col1.dataframe.shape[0]
+    modal = Modal(key="demo", title='point-cloud')
+    buttons =[]
+    
 
-def create_filter(combined_data, sensor):
+    for crop_id in range(table_len): #change crop to files_3d 
+        b = st.button("{crop_id}")
+        
+        if b:
+            modal.open()
+            crop_name =  col1.dataframe.at(crop_id, 'plant_name')
+            plant_3d_data = file_fetcher.download_plant_by_index(crop_name) #INCOMPLETE
+                                                                            #no proper return from funciton yet
+            
+            if modal.is_open():
+                st.pydeck_chart(pdk.Deck(map_style=None),
+                                layers = pdk.Layer('point-cloud',
+                                                   data=plant_3d_data)) #add code for href
+
+        buttons.append(b)
+    return button
+
+def create_filter(combined_data, sensor, season):
     """Creates a dynamic fiter
 
     Args:
@@ -474,7 +504,13 @@ def create_filter(combined_data, sensor):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
-    col2.header("Filtered Data")
+    # Add button column
+    #INCOMPLETE
+    file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, '2') #INCOMPLETE CLASS
+    buttons_fd = create_button_list(file_fetcher) #INCOMPLETE FUCNCTION
+    filtered_df.insert(0, "Vizualize", buttons_fd, False)
+
+    col2.header("Filtered Data")    
     col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
@@ -549,7 +585,8 @@ def main():
     st.sidebar.subheader("Scan selection")
     st.title("Dashboard")
     # for organizing stuff on the screen
-    global col1, col2, filter_sec, vis_container, plotly_col, dist_col
+    global col1, col2, filter_sec, vis_container, plotly_col, dist_col, files_3d
+    files_3d = []
     filter_sec = st.container()
     vis_container = st.container()
     plotly_col, dist_col = vis_container.columns(2)
