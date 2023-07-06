@@ -18,6 +18,10 @@ import tarfile
 import glob
 import shutil  # remove filled directory to manage
 from streamlit_modal import Modal
+import json
+import fetch_ipc as fipc
+import pydeck as pdk
+
 
 @st.cache_data
 def convert_df(df):
@@ -324,7 +328,7 @@ def data_analysis(
             axis=1,
             inplace=True,
         )
-        create_filter(combined_data=result, sensor=sensor)
+        create_filter(combined_data=result, sensor=sensor, season=season)
 
 
 @st.cache_resource
@@ -446,23 +450,31 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
-def create_button_list(crops):
+def create_button_list(file_fetcher):
     #make change to accomodate filters bc table is not file
+    table_len = col1.dataframe.shape[0]
     modal = Modal(key="demo", title='point-cloud')
     buttons =[]
-    i = 1
-    for crop in range(crops): #change crop to files_3d 
-        b = st.button("{i}")
-        i+=1
+    
+
+    for crop_id in range(table_len): #change crop to files_3d 
+        b = st.button("{crop_id}")
+        
         if b:
             modal.open()
+            crop_name =  col1.dataframe.at(crop_id, 'plant_name')
+            plant_3d_data = file_fetcher.download_plant_by_index(crop_name) #INCOMPLETE
+                                                                            #no proper return from funciton yet
+            
             if modal.is_open():
-                st.write("insert point cloud here")
-                # st.pydeck_chart(pdk.Deck(map_style=None),
-                #                 layers = pdk.Layer('point-cloud',
-                #                                    data='href')) #add code for href
+                st.pydeck_chart(pdk.Deck(map_style=None),
+                                layers = pdk.Layer('point-cloud',
+                                                   data=plant_3d_data)) #add code for href
 
-def create_filter(combined_data, sensor):
+        buttons.append(b)
+
+    return buttons
+def create_filter(combined_data, sensor, season):
     """Creates a dynamic fiter
 
     Args:
@@ -475,10 +487,6 @@ def create_filter(combined_data, sensor):
             filter_options.append(column_name)
     selected_column_name = filter_sec.selectbox("Filter", filter_options)
     col1.header("All Data")
-
-    # Create and add column of buttons for all data
-    buttons_cd = create_button_list(len(combined_data))
-    combined_data.insert(0, "Vizualize", buttons_cd, False)
 
     col1.dataframe(combined_data)
     selected_columns = []
@@ -494,7 +502,9 @@ def create_filter(combined_data, sensor):
     col2.header("Filtered Data")
 
     # Add button column
-    buttons_fd = create_button_list(len(filtered_df))
+    #INCOMPLETE
+    file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, '2') #INCOMPLETE CLASS
+    buttons_fd = create_button_list(file_fetcher) #INCOMPLETE FUCNCTION
     filtered_df.insert(0, "Vizualize", buttons_fd, False)
 
     col2.dataframe(filtered_df)
