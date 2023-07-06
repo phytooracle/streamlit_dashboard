@@ -1,5 +1,5 @@
 """
-Author: Aditya K. 
+Author: Aditya K. and Emily Cawley
 Purpose: A dasboard to visualize and download the results of pipeline processing. 
    Deployed on Streamlit Cloud. 
 
