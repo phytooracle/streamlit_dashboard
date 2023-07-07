@@ -328,6 +328,7 @@ def data_analysis(
             axis=1,
             inplace=True,
         )
+<<<<<<< Updated upstream
         result.to_csv(f"{sensor}_{season}_{crop}_{date}.csv", index=False)
         _session.data_objects.put(
             f"{sensor}_{season}_{crop}_{date}.csv",
@@ -335,6 +336,18 @@ def data_analysis(
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
         create_filter(combined_data=result, sensor=sensor, season=season)
+=======
+
+        index_filename =f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}_{crop}/individual_plants_out/{date}_{crop}_segmentation_pointclouds_index"
+        try:
+            _session.data_objects.get(index_filename)
+            file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, 'level_2', 
+                                    date, crop, index_filename) 
+        except:
+            file_fetcher=None
+
+        create_filter(file_fetcher, combined_data=result, sensor=sensor, season=season)
+>>>>>>> Stashed changes
 
 
 @st.cache_resource
@@ -456,31 +469,40 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
-def create_button_list(file_fetcher):
-    #make change to accomodate filters bc table is not file
-    table_len = col1.dataframe.shape[0]
-    modal = Modal(key="demo", title='point-cloud')
-    buttons =[]
+# def create_button_list(file_fetcher):
+#     #make change to accomodate filters bc table is not file
+#     table_len = col1.dataframe.shape[0]
+#     modal = Modal(key="demo", title='point-cloud')
+#     buttons =[]
     
 
-    for crop_id in range(table_len): #change crop to files_3d 
-        b = st.button("{crop_id}")
+#     for crop_id in range(table_len): #change crop to files_3d 
+#         b = st.button("{crop_id}")
         
-        if b:
-            modal.open()
-            crop_name =  col1.dataframe.at(crop_id, 'plant_name')
-            plant_3d_data = file_fetcher.download_plant_by_index(crop_name) #INCOMPLETE
-                                                                            #no proper return from funciton yet
+#         if b:
+#             modal.open()
+#             crop_name =  col1.dataframe.at(crop_id, 'plant_name')
+#             plant_3d_data = file_fetcher.download_plant_by_index(crop_name) #INCOMPLETE
+#                                                                             #no proper return from funciton yet
             
-            if modal.is_open():
-                st.pydeck_chart(pdk.Deck(map_style=None),
-                                layers = pdk.Layer('point-cloud',
-                                                   data=plant_3d_data)) #add code for href
+#             if modal.is_open():
+#                 st.pydeck_chart(pdk.Deck(map_style=None),
+#                                 layers = pdk.Layer('point-cloud',
+#                                                    data=plant_3d_data)) #add code for href
 
+<<<<<<< Updated upstream
         buttons.append(b)
     return button
 
 def create_filter(combined_data, sensor, season):
+=======
+#         buttons.append(b)
+
+    return buttons
+
+
+def create_filter(file_fetcher, combined_data, sensor, season):
+>>>>>>> Stashed changes
     """Creates a dynamic fiter
 
     Args:
@@ -504,6 +526,7 @@ def create_filter(combined_data, sensor, season):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
+<<<<<<< Updated upstream
     # Add button column
     #INCOMPLETE
     file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, '2') #INCOMPLETE CLASS
@@ -511,6 +534,10 @@ def create_filter(combined_data, sensor, season):
     filtered_df.insert(0, "Vizualize", buttons_fd, False)
 
     col2.header("Filtered Data")    
+=======
+    col2.header("Filtered Data")
+
+>>>>>>> Stashed changes
     col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
@@ -524,10 +551,18 @@ def create_filter(combined_data, sensor, season):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
-    get_visuals(filtered_df, exact_column_name)
+    get_visuals(filtered_df, exact_column_name, file_fetcher)
 
+def callback(file_fetcher, click_data):
+    
 
-def get_visuals(filtered_df, column_name):
+    crop_name =  col1.dataframe.at(click_data['pointNumber'], 'plant_name')
+    plant_3d_data = file_fetcher.download_plant_by_index(crop_name)
+
+    dist_col.pydeck_chart(pdk.Deck(map_style=None),
+                    layers = pdk.Layer('point-cloud', data=plant_3d_data))
+
+def get_visuals(filtered_df, column_name, file_fetcher):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -548,6 +583,9 @@ def get_visuals(filtered_df, column_name):
         mapbox_style="satellite-streets",
     )
 
+    if(file_fetcher is not None):
+        fig.on_click(callback(file_fetcher, filtered_df))
+
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
 
@@ -560,6 +598,8 @@ def get_visuals(filtered_df, column_name):
     )
 
     plotly_col.plotly_chart(fig, use_container_width=True)
+
+    # scatter.selected_points
 
     # dist = px.histogram(filtered_df, x=column_name, color=column_name)
     # dist.update_layout(title=f"{column_name} distribution", autosize=True)
@@ -710,6 +750,15 @@ def main():
                                             dates[selected_date],
                                             alt_layout,
                                         )
+
+                                    #ADD 3D VISUALIZAION
+                                    # out dir, season, level, date, crop, index_filename
+                                    
+                                    # index_filename =f"/iplant/home/shared/phytooracle/{seasons[selected_season]}/level_2/scanner3DTop/{selected_crop}/{dates[selected_date]}_{selected_crop}/individual_plants_out/{dates[select_date]}_{crop}_segmentation_pointclouds_index"
+                                    # file_fetcher = fipc.Fetcher("individually_called_point_clouds", seasons[selected_season], 'level_2', 
+                                    #                             dates[selected_date], selected_crop, index_filename) 
+                                    
+
 
 
 if __name__ == "__main__":
