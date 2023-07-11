@@ -17,13 +17,13 @@ import os
 import tarfile
 import glob
 import shutil  # remove filled directory to manage space
-from streamlit_modal import Modal
+# from streamlit_modal import Modal
 import json
 import fetch_ipc as fipc
 import pydeck as pdk
+import plotly.graph_objects as go
 
-
-@st.cache_data
+# @st.cache_data
 def convert_df(df):
     # Cache the conversion to prevent computation on every rerun
     return df.to_csv(index=False).encode("utf-8")
@@ -53,7 +53,7 @@ def get_seasons(_session):
         return seasons
 
 
-@st.cache_data
+# @st.cache_data
 def get_sensors(_session, season):
     """A method to download the sensors available for a given season
     and update them through Cyverse.
@@ -84,7 +84,7 @@ def get_sensors(_session, season):
         return sensors
 
 
-@st.cache_data
+# @st.cache_data
 def get_crops(_session, season, sensor, alt_layout):
     """A method to download the crops processed for a given season/sensor combo.
     and update them through Cyverse.
@@ -118,7 +118,7 @@ def get_crops(_session, season, sensor, alt_layout):
     return crops
 
 
-@st.cache_data
+# @st.cache_data
 def get_dates(_session, season, sensor, crop):
     """A method to get a list of dates processed for a given
     season/sensor/crop combo from cyverse data store.
@@ -156,7 +156,7 @@ def get_dates(_session, season, sensor, crop):
         return dates
 
 
-@st.cache_data
+# @st.cache_data
 def get_plant_detection_csv_path(
     _session, season, sensor, crop, dates, selected_date, alt_layout
 ):
@@ -222,7 +222,7 @@ def get_plant_detection_csv_path(
     return ""
 
 
-@st.cache_data
+# @st.cache_data
 def download_fieldbook(_session, season):
     """Download the fieldbook for the specified season
     if it is not already in the cache.
@@ -253,7 +253,7 @@ def download_fieldbook(_session, season):
     return ""
 
 
-@st.cache_data
+# @st.cache_data
 def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_path):
     """Download and extract the plant detection csv from the file name
     Args:
@@ -328,29 +328,31 @@ def data_analysis(
             axis=1,
             inplace=True,
         )
-<<<<<<< Updated upstream
         result.to_csv(f"{sensor}_{season}_{crop}_{date}.csv", index=False)
         _session.data_objects.put(
             f"{sensor}_{season}_{crop}_{date}.csv",
             f"/iplant/home/shared/phytooracle/dashboard_cache/{sensor}/combined_data/{season}_{date}_all.csv",
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
-        create_filter(combined_data=result, sensor=sensor, season=season)
-=======
-
-        index_filename =f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}_{crop}/individual_plants_out/{date}_{crop}_segmentation_pointclouds_index"
+        
+        print(season)
+        print(crop)
+        print(date)
+        index_filename =f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
+        print(index_filename)
         try:
             _session.data_objects.get(index_filename)
             file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, 'level_2', 
                                     date, crop, index_filename) 
+            print("sucess fetcher")
         except:
+            print("failed fetcher")
             file_fetcher=None
 
         create_filter(file_fetcher, combined_data=result, sensor=sensor, season=season)
->>>>>>> Stashed changes
 
 
-@st.cache_resource
+# @st.cache_resource
 def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layout):
     """This part deals with downloading files and doing extra work for the
     3D and PSII sensors, that don't have geolocation data stored in one file.
@@ -441,7 +443,7 @@ def download_plant_clustering_csv(_session, season, season_no):
         )
 
 
-@st.cache_resource
+# @st.cache_resource
 def combine_all_csv(path, sensor, crop, date):
     """Combine all the CSVs in a directory into a single pandas dataframe
     Args:
@@ -490,19 +492,12 @@ def combine_all_csv(path, sensor, crop, date):
 #                                 layers = pdk.Layer('point-cloud',
 #                                                    data=plant_3d_data)) #add code for href
 
-<<<<<<< Updated upstream
-        buttons.append(b)
-    return button
-
-def create_filter(combined_data, sensor, season):
-=======
 #         buttons.append(b)
 
     return buttons
 
 
 def create_filter(file_fetcher, combined_data, sensor, season):
->>>>>>> Stashed changes
     """Creates a dynamic fiter
 
     Args:
@@ -526,18 +521,13 @@ def create_filter(file_fetcher, combined_data, sensor, season):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
-<<<<<<< Updated upstream
     # Add button column
     #INCOMPLETE
-    file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, '2') #INCOMPLETE CLASS
-    buttons_fd = create_button_list(file_fetcher) #INCOMPLETE FUCNCTION
-    filtered_df.insert(0, "Vizualize", buttons_fd, False)
+    # file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, '2') #INCOMPLETE CLASS
+    # buttons_fd = create_button_list(file_fetcher) #INCOMPLETE FUCNCTION
+    # filtered_df.insert(0, "Vizualize", buttons_fd, False)
 
     col2.header("Filtered Data")    
-=======
-    col2.header("Filtered Data")
-
->>>>>>> Stashed changes
     col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
@@ -584,7 +574,10 @@ def get_visuals(filtered_df, column_name, file_fetcher):
     )
 
     if(file_fetcher is not None):
-        fig.on_click(callback(file_fetcher, filtered_df))
+        fig.update_layout(clickmode='event+select')
+        print(type(fig))
+        # fig.on('plotly_click', callback)
+        # fig.on_click(callback(file_fetcher, filtered_df))
 
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
@@ -604,7 +597,6 @@ def get_visuals(filtered_df, column_name, file_fetcher):
     # dist = px.histogram(filtered_df, x=column_name, color=column_name)
     # dist.update_layout(title=f"{column_name} distribution", autosize=True)
     # dist_col.plotly_chart(dist, use_container_width=True)
-
 
 def main():
     # Setting up the app for aesthetic changes
