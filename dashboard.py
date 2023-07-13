@@ -681,7 +681,9 @@ def main():
                             f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                         )
                         create_filter(comb_df, selected_sensor)
-                        os.remove(f"{selected_season}_{dates[selected_date]}_all.csv")
+                        os.remove(
+                            f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                        )
                     except Exception as e:
                         plant_detection_csv_path = get_plant_detection_csv_path(
                             _session,
