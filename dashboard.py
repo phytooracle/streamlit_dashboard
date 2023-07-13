@@ -73,7 +73,7 @@ def get_sensors(_session, season):
     else:
         for sensor in sensor_collection.subcollections:
             # might need to modify this for extra sensors - ASK ABOUT DRONE DATA
-            if not re.search("depreceated", sensor.name) and not re.search(
+            if not re.search("deprecated", sensor.name) and not re.search(
                 "environmentlogger", sensor.name, re.IGNORECASE
             ):
                 sensors.append(sensor.name)
@@ -108,10 +108,46 @@ def get_crops(_session, season, sensor, alt_layout):
             return crops
         else:
             for crop in season_crop_collection.subcollections:
-                if not re.search("dep*", crop.name):
+                if not re.search("dep*", crop.name) and not re.search(
+                    "[0-9][0-9a-zA-z]*", crop.name
+                ):
                     crops.append(crop.name)
             return crops
     return crops
+
+
+@st.cache_resource
+def display_processing_info(_session, seasons, selected_season, sensors, crops):
+    info_sec = st.container()
+    info_sec.divider()
+    info_sec.subheader(":blue[Processing Information]")
+    info_sec.markdown(
+        f"Here is the status of processing for different sensor data for :red[{selected_season}]"
+    )
+    season = seasons[selected_season]
+    season_folders = _session.collections.get(
+        f"/iplant/home/shared/phytooracle/{season}/"
+    )
+    levels = []
+    for folder in season_folders.subcollections:
+        if re.search("level_[0-9]+", folder.name):
+            levels.append(folder.name)
+    sensor_data = ""
+    for sensor in sensors:
+        for level in sorted(levels, reverse=True):
+            try:
+                _session.collections.get(
+                    f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}"
+                )
+                level_no = level.split("_")[1]
+                sensor_data += (
+                    f"**:green[{sensor.upper()}]** processed to **Level {level_no}**, "
+                )
+                break
+            except:
+                continue
+    info_sec.markdown(sensor_data[:-2])
+    info_sec.divider()
 
 
 @st.cache_data
@@ -234,18 +270,22 @@ def download_fieldbook(_session, season):
     season_file_collection = _session.collections.get(
         f"/iplant/home/shared/phytooracle/{season}"
     )
+    season_no = season.split("_")[1]
     for file in season_file_collection.data_objects:
         if re.search("field*book", file.name, re.IGNORECASE) or re.search(
             "book", file.name, re.IGNORECASE
         ):
-            if not (os.path.exists(f"field_books/{file.name}")):
+            file_type = file.name.split(".")[1]
+            if not (
+                os.path.exists(f"field_books/season_{season_no}_fieldbook.{file_type}")
+            ):
                 if not os.path.exists("field_books"):
                     os.makedirs("field_books")
                 _session.data_objects.get(
                     f"/iplant/home/shared/phytooracle/{season}/{file.name}",
-                    "field_books",
+                    f"field_books/season_{season_no}_fieldbook.{file_type}",
                 )
-            return file.name
+            return f"season_{season_no}_fieldbook.{file_type}"
     return ""
 
 
@@ -307,7 +347,6 @@ def data_analysis(
         )
         st.write("Please contact the Phytooracle staff")
         return
-    # DISCUSS THIS MERGE TECHNIQUE
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
     if "3D" in sensor or "ps2Top" in sensor:
@@ -331,6 +370,24 @@ def data_analysis(
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
         create_filter(combined_data=result, sensor=sensor)
+    else:
+        # result dataframe is empty, allow the users to download the plant detection csv and fieldbook csv
+        st.subheader("Some Error occured (might be a merge issue).")
+        st.write(
+            "Below are the links to download the Plant Detection and the Fieldbook CSV"
+        )
+        st.download_button(
+            label="Download Plant Detection CSV",
+            data=convert_df(plant_detect_df),
+            file_name=f"{date}_plant_detect_out.csv",
+            mime="text/csv",
+        )
+        st.download_button(
+            label="Download Fieldbook Data",
+            data=convert_df(field_book_df),
+            file_name=f"{season}_fieldbook.csv",
+            mime="text/csv",
+        )
 
 
 @st.cache_resource
@@ -351,7 +408,6 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
       - date (string): Specified date.
     """
 
-    # NEED TO MAKE THIS WORK FOR ALT LAYOUT
     season_no = season.split("_")[1]
     if "3D" in sensor:
         try:
@@ -382,7 +438,7 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             ).loc[:, ["plot", "lat", "lon"]]
             combined_df = combined_df.merge(plant_clustering_df, on="plot")
             return combined_df
-        except:
+        except Exception as e:
             st.write(
                 f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
             )
@@ -412,13 +468,20 @@ def download_plant_clustering_csv(_session, season, season_no):
     if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
         if not os.path.exists("plant_clustering"):
             os.makedirs("plant_clustering")
-        _session.data_objects.get(
+        detection_combined = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
-            f"season_{season_no}_plant_detection_combined/"
-            f"season_{season_no}_clustering.csv",
-            f"plant_clustering/season_{season_no}_clustering.csv",
-            force=True,
+            f"season_{season_no}_plant_detection_combined"
         )
+
+        for item in detection_combined.data_objects:
+            _session.data_objects.get(
+                f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
+                f"season_{season_no}_plant_detection_combined/"
+                f"{item.name}",
+                f"plant_clustering/season_{season_no}_clustering.csv",
+                force=True,
+            )
+            break
 
 
 @st.cache_resource
@@ -435,7 +498,6 @@ def combine_all_csv(path, sensor, crop, date):
             os.makedirs("volumes_entropy")
         all_files = glob.glob(path + "/*.csv")
         li = []
-
         for filename in all_files:
             df = pd.read_csv(filename, index_col=None, header=0)
             li.append(df)
@@ -540,7 +602,10 @@ def main():
       .reportview-container.main.block-container {{
       padding-top: 0rem;
       }}
-      #MainMenu {visibility: hidden; }
+      .block-container {
+        padding-top: 2rem;
+        padding-bottom: 0rem;
+      }
       footer {visibility: hidden;}
       </style>
       """
@@ -548,12 +613,7 @@ def main():
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
     st.title("Dashboard")
-    # for organizing stuff on the screen
-    global col1, col2, filter_sec, vis_container, plotly_col, dist_col
-    filter_sec = st.container()
-    vis_container = st.container()
-    plotly_col, dist_col = vis_container.columns(2)
-    col1, col2 = st.columns(2)
+
     # To establish an irods _session
     try:
         _session = iRODSSession(
@@ -574,7 +634,6 @@ def main():
             selected_season = st.sidebar.selectbox(
                 "Select a season: ", season_display_names
             )
-
             # A flag to check wheter S10 or S11 is selected (Exceptions)
             alt_layout = (
                 True
@@ -593,14 +652,24 @@ def main():
                         selected_crop = st.sidebar.selectbox(
                             "Select a crop: ", sorted(crops)
                         )
+                display_processing_info(
+                    _session, seasons, selected_season, sensors, crops
+                )
                 dates = get_dates(
                     _session, seasons[selected_season], selected_sensor, selected_crop
                 )
+                # for organizing stuff on the screen
+                global col1, col2, filter_sec, vis_container, plotly_col, dist_col
+                filter_sec = st.container()
+                vis_container = st.container()
+                plotly_col, dist_col = vis_container.columns(2)
+                col1, col2 = st.columns(2)
                 if dates:
                     display_dates = sorted(dates.keys())
                     selected_date = st.sidebar.select_slider(
                         "Select a date: ", options=display_dates
                     )
+                    filter_sec.subheader(":blue[Data and its Visualization]")
                     try:
                         _session.data_objects.get(
                             f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
@@ -625,6 +694,7 @@ def main():
                         )
                         if plant_detection_csv_path != "":
                             # Download necessary files (just fieldbook and plantdetection csv for now)
+
                             with filter_sec:
                                 with st.spinner(
                                     "This might take some time. Please wait..."
