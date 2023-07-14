@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import requests
 import json
+import re
 
 class Fetcher:
 
@@ -27,12 +28,13 @@ class Fetcher:
     }
 
     # Maybe move this over to dashboard since file must be downloaded there
-    def json_index(date, index_filename, writeout=False):
+    def json_index(self, date, index_filename, writeout=False):
         # index_filename = f"{date}_segmentation_pointclouds_index"
         json_index = {}
 
         #sometimes theres' just no file for that date
         try:
+            
             index_file = open(index_filename,"r").read()
             # for each line in the file make an element in the dictionary by plantname
             lines = index_file.split("\n")
@@ -75,13 +77,13 @@ class Fetcher:
         os.makedirs(folder, exist_ok=True)
         # go through the dates
         
-        season_path = self.irods_dict['season'][self.season]
+        # season_path = self.irods_dict['season'][self.season]
 
         # construct a url for the date
-        if season_path == 'season_10_lettuce_yr_2020':
-            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{season_path}/{self.level}/scanner3DTop/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
+        if self.season == 'season_10_lettuce_yr_2020':
+            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{self.season}/{self.level}/scanner3DTop/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
         else:
-            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{season_path}/{self.level}/scanner3DTop/{self.crop}/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
+            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{self.season}/{self.level}/scanner3DTop/{self.crop}/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
         # print(ipath)
         # look through all_dates for the plant data
         # index by plant
@@ -106,7 +108,9 @@ class Fetcher:
 
                 with open(res,"wb") as phile:
                     phile.write(ply_buffer)
+                    
+                return res
+                
 
-            #INCOMPLETE
-            return phile
+            
             # have to add return for either the data itself or the local location of the downloaded file
