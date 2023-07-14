@@ -120,7 +120,7 @@ def get_crops(_session, season, sensor, alt_layout):
 def display_processing_info(_session, seasons, selected_season, sensors, crops):
     info_sec = st.container()
     info_sec.divider()
-    info_sec.subheader(":blue[Processing Information]")
+    info_sec.header(":blue[Processing Information]")
     info_sec.markdown(
         f"Here is the status of processing for different sensor data for :red[{selected_season}]"
     )
@@ -133,21 +133,107 @@ def display_processing_info(_session, seasons, selected_season, sensors, crops):
         if re.search("level_[0-9]+", folder.name):
             levels.append(folder.name)
     sensor_data = ""
+    total_files_ct_all = 0
+    processed_files_ct_all = 0
+    sensor_df = pd.DataFrame({"sensor": [], "processed": [], "unprocessed": []})
     for sensor in sensors:
         for level in sorted(levels, reverse=True):
             try:
                 _session.collections.get(
                     f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}"
                 )
-                level_no = level.split("_")[1]
-                sensor_data += (
-                    f"**:green[{sensor.upper()}]** processed to **Level {level_no}**, "
-                )
-                break
             except:
                 continue
+            else:
+                level_no = int(level.split("_")[1])
+                if sensor != "stereoTop" or level_no <= 1:
+                    # for crop in crops:
+                    level_0_file_ct = get_and_count_files_in_folder(
+                        _session, season, sensor, crops[0], "level_0"
+                    )
+                    level_X_file_ct = get_and_count_files_in_folder(
+                        _session, season, sensor, crops[0], level
+                    )
+                    total_files_ct_all += level_0_file_ct
+                    processed_files_ct_all += level_X_file_ct
+                    sensor_df = sensor_df.append(
+                        {
+                            "sensor": sensor,
+                            "processed": level_X_file_ct,
+                            "unprocessed": level_0_file_ct - level_X_file_ct,
+                        },
+                        ignore_index=True,
+                    )
+                    percentage_processed = (level_X_file_ct / level_0_file_ct) * 100
+                else:
+                    # A single common file created for RGB higher processing, so if there is a folder
+                    # then everything has been processed
+                    level_0_file_ct = get_and_count_files_in_folder(
+                        _session, season, sensor, crops[0], "level_0"
+                    )
+                    sensor_df = sensor_df.append(
+                        {
+                            "sensor": sensor,
+                            "processed": level_0_file_ct,
+                            "unprocessed": 0,
+                        },
+                        ignore_index=True,
+                    )
+                    percentage_processed = 100
+                sensor_data += f"**:green[{sensor.upper()}]** processed to **Level {level_no}** (:orange[{round(percentage_processed, 2)}%]),  "
+                break
     info_sec.markdown(sensor_data[:-2])
+    cumulative_stats, sensor_stats = info_sec.columns(2)
+    entire_df = pd.DataFrame(
+        {
+            "names": ["Processed Files", "Unprocessed Files"],
+            "values": [
+                processed_files_ct_all,
+                total_files_ct_all - processed_files_ct_all,
+            ],
+        }
+    )
+    full_stats = px.pie(
+        entire_df,
+        values="values",
+        names="names",
+        hole=0.9,
+        color_discrete_sequence=["#1fd655", "orange"],
+        title="Cumulative Statistics",
+    )
+    cumulative_stats.plotly_chart(full_stats, use_container_width=True)
+    cumulative_stats.subheader(
+        f"{total_files_ct_all - processed_files_ct_all} files left for the current processing stage"
+    )
+    sensor_chart = px.bar(
+        sensor_df,
+        x="sensor",
+        y=["processed", "unprocessed"],
+        labels={"value": "No. of files", "variable": "Processing State"},
+        title="Sensor Specific Data",
+    )
+    sensor_stats.plotly_chart(sensor_chart, use_container_width=True)
     info_sec.divider()
+
+
+def get_and_count_files_in_folder(_session, season, sensor, crop, level):
+    count = 0
+    if level != "level_0":
+        file_collection = _session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}/{crop}"
+        )
+        for folder in file_collection.subcollections:
+            # print(folder.name)
+            if not re.search("dep*", folder.name) and re.search("\d+\s*", folder.name):
+                count += 1
+    else:
+        file_collection = _session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}"
+        )
+        for folder in file_collection.data_objects:
+            if not re.search("dep*", folder.name):
+                count += 1
+    return count
 
 
 @st.cache_data
@@ -472,7 +558,6 @@ def download_plant_clustering_csv(_session, season, season_no):
             f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
             f"season_{season_no}_plant_detection_combined"
         )
-
         for item in detection_combined.data_objects:
             _session.data_objects.get(
                 f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
@@ -613,7 +698,6 @@ def main():
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
     st.title("Dashboard")
-
     # To establish an irods _session
     try:
         _session = iRODSSession(
