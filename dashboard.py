@@ -117,12 +117,12 @@ def get_crops(_session, season, sensor, alt_layout):
 
 
 @st.cache_resource
-def display_processing_info(_session, seasons, selected_season, sensors, crops):
+def display_processing_info(_session, seasons, selected_season, sensors, crop):
     info_sec = st.container()
     info_sec.divider()
     info_sec.header(":blue[Processing Information]")
     info_sec.markdown(
-        f"Here is the status of processing for different sensor data for :red[{selected_season}]"
+        f"Here is the status of processing for different sensor data for :red[{selected_season}] **({crop})**"
     )
     season = seasons[selected_season]
     season_folders = _session.collections.get(
@@ -149,10 +149,10 @@ def display_processing_info(_session, seasons, selected_season, sensors, crops):
                 if sensor != "stereoTop" or level_no <= 1:
                     # for crop in crops:
                     level_0_file_ct = get_and_count_files_in_folder(
-                        _session, season, sensor, crops[0], "level_0"
+                        _session, season, sensor, crop, "level_0"
                     )
                     level_X_file_ct = get_and_count_files_in_folder(
-                        _session, season, sensor, crops[0], level
+                        _session, season, sensor, crop, level
                     )
                     total_files_ct_all += level_0_file_ct
                     processed_files_ct_all += level_X_file_ct
@@ -169,7 +169,7 @@ def display_processing_info(_session, seasons, selected_season, sensors, crops):
                     # A single common file created for RGB higher processing, so if there is a folder
                     # then everything has been processed
                     level_0_file_ct = get_and_count_files_in_folder(
-                        _session, season, sensor, crops[0], "level_0"
+                        _session, season, sensor, crop, "level_0"
                     )
                     sensor_df = sensor_df.append(
                         {
@@ -198,19 +198,34 @@ def display_processing_info(_session, seasons, selected_season, sensors, crops):
         values="values",
         names="names",
         hole=0.9,
-        color_discrete_sequence=["#1fd655", "orange"],
+        color_discrete_sequence=["#2E8B57", "#3CB371"],
         title="Cumulative Statistics",
     )
-    cumulative_stats.plotly_chart(full_stats, use_container_width=True)
-    cumulative_stats.subheader(
-        f"{total_files_ct_all - processed_files_ct_all} files left for the current processing stage"
+    full_stats.update_layout(
+        uniformtext_minsize=12,
+        uniformtext_mode="hide",
+        annotations=[
+            dict(
+                text=f"{total_files_ct_all - processed_files_ct_all} files left",
+                x=0.5,
+                y=0.5,
+                font_size=30,
+                showarrow=False,
+                # font_color="#1c1c1c",
+            )
+        ],
     )
+    cumulative_stats.plotly_chart(full_stats, use_container_width=True)
+    # cumulative_stats.subheader(
+    #     f"**{total_files_ct_all - processed_files_ct_all}** files left for the current processing stage"
+    # )
     sensor_chart = px.bar(
         sensor_df,
         x="sensor",
         y=["processed", "unprocessed"],
         labels={"value": "No. of files", "variable": "Processing State"},
         title="Sensor Specific Data",
+        color_discrete_sequence=["#2E8B57", "#3CB371"],
     )
     sensor_stats.plotly_chart(sensor_chart, use_container_width=True)
     info_sec.divider()
@@ -223,7 +238,6 @@ def get_and_count_files_in_folder(_session, season, sensor, crop, level):
             f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}/{crop}"
         )
         for folder in file_collection.subcollections:
-            # print(folder.name)
             if not re.search("dep*", folder.name) and re.search("\d+\s*", folder.name):
                 count += 1
     else:
@@ -231,7 +245,7 @@ def get_and_count_files_in_folder(_session, season, sensor, crop, level):
             f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}"
         )
         for folder in file_collection.data_objects:
-            if not re.search("dep*", folder.name):
+            if not re.search("dep*", folder.name) and re.search(crop, folder.name):
                 count += 1
     return count
 
@@ -737,7 +751,7 @@ def main():
                             "Select a crop: ", sorted(crops)
                         )
                 display_processing_info(
-                    _session, seasons, selected_season, sensors, crops
+                    _session, seasons, selected_season, sensors, selected_crop
                 )
                 dates = get_dates(
                     _session, seasons[selected_season], selected_sensor, selected_crop
@@ -753,7 +767,7 @@ def main():
                     selected_date = st.sidebar.select_slider(
                         "Select a date: ", options=display_dates
                     )
-                    filter_sec.subheader(":blue[Data and its Visualization]")
+                    filter_sec.header(":blue[Data and its Visualization]")
                     try:
                         _session.data_objects.get(
                             f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
