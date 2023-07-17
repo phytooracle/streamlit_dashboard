@@ -17,6 +17,7 @@ import os
 import tarfile
 import glob
 import shutil  # remove filled directory to manage space
+
 # from streamlit_modal import Modal
 import json
 import fetch_ipc as fipc
@@ -24,6 +25,7 @@ import pydeck as pdk
 import streamlit.components.v1 as components
 import open3d as o3d
 import numpy as np
+
 
 @st.cache_data
 def convert_df(df):
@@ -336,21 +338,27 @@ def data_analysis(
             f"/iplant/home/shared/phytooracle/dashboard_cache/{sensor}/combined_data/{season}_{date}_all.csv",
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
-        
+
         print(season)
         print(crop)
         print(date)
-        if_path =f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
+        if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
         if_name = f"{date}_segmentation_pointclouds_index"
         print(if_path)
         try:
             _session.data_objects.get(if_path)
-            file_fetcher = fipc.Fetcher("individually_called_point_clouds", season, 'level_2', 
-                                    date, crop, if_name) 
+            file_fetcher = fipc.Fetcher(
+                "individually_called_point_clouds",
+                season,
+                "level_2",
+                date,
+                crop,
+                if_name,
+            )
             print("sucess fetcher")
         except Exception as e:
             print(e)
-            file_fetcher=None
+            file_fetcher = None
 
         create_filter(file_fetcher, combined_data=result, sensor=sensor, season=season)
 
@@ -426,7 +434,9 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
                     force=True,
                 )
                 # add file names to collection
-                files_3d.append(f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/{file.name}")
+                files_3d.append(
+                    f"/iplant/home/shared/phytooracle/{season}/level_2/{sensor}/{crop}/{date}/individual_plants_out/{file.name}"
+                )
                 break
         with tarfile.open("local_file_delete.tar", "r") as tar:
             tar.extractall()
@@ -474,39 +484,40 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
-def create_button_list(file_fetcher, filtered_df):
-    #make change to accomodate filters bc table is not file
-    table_len = col1.dataframe.shape[0]
-    buttons =[]
-    
 
-    for crop_id in range(table_len): #change crop to files_3d 
+def create_button_list(file_fetcher, filtered_df):
+    # make change to accomodate filters bc table is not file
+    table_len = filtered_df.shape[0]
+    buttons = []
+
+    for crop_id in range(table_len):  # change crop to files_3d
         b = st.button("Vizualize", key=crop_id)
-        
+
         if b:
-            crop_name =  filtered_df.at(crop_id, 'plant_name')
-            plant_3d_data = file_fetcher.download_plant_by_index(crop_name) #INCOMPLETE
-                                                                            #no proper return from funciton yet
-            
+            crop_name = filtered_df.at(crop_id, "plant_name")
+            plant_3d_data = file_fetcher.download_plant_by_index(
+                crop_name
+            )  # INCOMPLETE
+            # no proper return from funciton yet
+
             path_final_file = f"individually_called_point_clouds/{crop_name}_timeseries/{file_fetcher.date}_final.ply"
-    
 
             pcd = o3d.io.read_point_cloud(path_final_file)
-                # Apply offset after opening the point cloud
+            # Apply offset after opening the point cloud
             x_offset = 409000
             y_offset = 3660000
 
-        
-            xs = np.asarray(pcd.points)[:,0] - x_offset
-            ys = np.asarray(pcd.points)[:,1] - y_offset
-            zs = np.asarray(pcd.points)[:,2]
+            xs = np.asarray(pcd.points)[:, 0] - x_offset
+            ys = np.asarray(pcd.points)[:, 1] - y_offset
+            zs = np.asarray(pcd.points)[:, 2]
 
-            df_dict = {'x':xs, 'y':ys, 'z':zs}
+            df_dict = {"x": xs, "y": ys, "z": zs}
             df = pd.DataFrame(df_dict)
 
             target = [df.x.mean(), df.y.mean(), df.z.mean()]
 
-            point_cloud_layer = pdk.Layer( "PointCloudLayer",
+            point_cloud_layer = pdk.Layer(
+                "PointCloudLayer",
                 data=df,
                 get_position=["x", "y", "z"],
                 get_color=["r", "g", "b"],
@@ -514,16 +525,21 @@ def create_button_list(file_fetcher, filtered_df):
                 auto_highlight=True,
                 pickable=True,
                 point_size=3,
-                )
-            
-            view_state = pdk.ViewState(target=target, controller=True, rotation_x=15, rotation_orbit=30, zoom=13)
+            )
+
+            view_state = pdk.ViewState(
+                target=target,
+                controller=True,
+                rotation_x=15,
+                rotation_orbit=30,
+                zoom=13,
+            )
             view = pdk.View(type="OrbitView", controller=True)
-            
+
             r = pdk.Deck(point_cloud_layer, initial_view_state=view_state, views=[view])
 
             with dist_col:
                 components.html(r.to_html(as_string=True), height=600)
-
 
         buttons.append(b)
 
@@ -555,13 +571,15 @@ def create_filter(file_fetcher, combined_data, sensor, season):
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     # Add button column
-    #INCOMPLETE
+    # INCOMPLETE
 
     if file_fetcher is not None:
-        buttons_fd = create_button_list(file_fetcher) #INCOMPLETE FUCNCTION
+        buttons_fd = create_button_list(
+            file_fetcher, filtered_df
+        )  # INCOMPLETE FUCNCTION
         filtered_df.insert(0, "Vizualize", buttons_fd, False)
 
-    col2.header("Filtered Data")    
+    col2.header("Filtered Data")
     col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
@@ -578,7 +596,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     get_visuals(filtered_df, exact_column_name, file_fetcher)
 
 
-def get_visuals(filtered_df, column_name):
+def get_visuals(filtered_df, column_name, file_fetcher):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -617,6 +635,7 @@ def get_visuals(filtered_df, column_name):
     # dist = px.histogram(filtered_df, x=column_name, color=column_name)
     # dist.update_layout(title=f"{column_name} distribution", autosize=True)
     # dist_col.plotly_chart(dist, use_container_width=True)
+
 
 def main():
     # Setting up the app for aesthetic changes
@@ -762,10 +781,6 @@ def main():
                                             dates[selected_date],
                                             alt_layout,
                                         )
-
-                        
-                                    
-
 
 
 if __name__ == "__main__":
