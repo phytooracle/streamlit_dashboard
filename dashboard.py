@@ -590,9 +590,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
         )  # get which row user selects of the
         # displayed aggrid
 
-    if (
-        file_fetcher is not None and len(selected[selected_rows]) != 0
-    ):  # actual callback
+    if file_fetcher is not None and len(selected.selected_rows) != 0:  # actual callback
         callback(file_fetcher, selected.selected_rows[0]["plant_name"])
 
     col2.header("Filtered Data")
