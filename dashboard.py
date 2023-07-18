@@ -25,6 +25,7 @@ import pydeck as pdk
 import streamlit.components.v1 as components
 import open3d as o3d
 import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 
 @st.cache_data
@@ -484,66 +485,58 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
-
-def create_button_list(file_fetcher, filtered_df):
+def callback(file_fetcher, crop_name):
     # make change to accomodate filters bc table is not file
-    table_len = filtered_df.shape[0]
-    buttons = []
+    plant_3d_data = file_fetcher.download_plant_by_index(
+        crop_name
+    )  # INCOMPLETE
+    # no proper return from funciton yet
 
-    for crop_id in range(table_len):  # change crop to files_3d
-        b = st.button("Vizualize", key=crop_id)
+    # return value is not correct path so get correct path
+    path_final_file = f"individually_called_point_clouds/{crop_name}_timeseries/{file_fetcher.date}_final.ply"
 
-        if b:
-            crop_name = filtered_df.at(crop_id, "plant_name")
-            plant_3d_data = file_fetcher.download_plant_by_index(
-                crop_name
-            )  # INCOMPLETE
-            # no proper return from funciton yet
+    pcd = o3d.io.read_point_cloud(path_final_file)
+    # Apply offset after opening the point cloud
+    x_offset = 409000
+    y_offset = 3660000
 
-            path_final_file = f"individually_called_point_clouds/{crop_name}_timeseries/{file_fetcher.date}_final.ply"
+#   adjust based on offsets
+    xs = np.asarray(pcd.points)[:, 0] - x_offset
+    ys = np.asarray(pcd.points)[:, 1] - y_offset
+    zs = np.asarray(pcd.points)[:, 2]
 
-            pcd = o3d.io.read_point_cloud(path_final_file)
-            # Apply offset after opening the point cloud
-            x_offset = 409000
-            y_offset = 3660000
+    df_dict = {"x": xs, "y": ys, "z": zs}
+    df = pd.DataFrame(df_dict)
 
-            xs = np.asarray(pcd.points)[:, 0] - x_offset
-            ys = np.asarray(pcd.points)[:, 1] - y_offset
-            zs = np.asarray(pcd.points)[:, 2]
+    # set center for camera 
+    target = [df.x.mean(), df.y.mean(), df.z.mean()]
 
-            df_dict = {"x": xs, "y": ys, "z": zs}
-            df = pd.DataFrame(df_dict)
+    point_cloud_layer = pdk.Layer(
+        "PointCloudLayer",
+        data=df,
+        get_position=["x", "y", "z"],
+        get_color=["r", "g", "b"],
+        get_normal=[0, 0, 15],
+        auto_highlight=True,
+        pickable=True,
+        point_size=3,
+    )
 
-            target = [df.x.mean(), df.y.mean(), df.z.mean()]
+    view_state = pdk.ViewState(
+        target=target,
+        controller=True,
+        rotation_x=15,
+        rotation_orbit=30,
+        zoom=13,
+    )
+    view = pdk.View(type="OrbitView", controller=True)
 
-            point_cloud_layer = pdk.Layer(
-                "PointCloudLayer",
-                data=df,
-                get_position=["x", "y", "z"],
-                get_color=["r", "g", "b"],
-                get_normal=[0, 0, 15],
-                auto_highlight=True,
-                pickable=True,
-                point_size=3,
-            )
+    r = pdk.Deck(point_cloud_layer, initial_view_state=view_state, views=[view])
 
-            view_state = pdk.ViewState(
-                target=target,
-                controller=True,
-                rotation_x=15,
-                rotation_orbit=30,
-                zoom=13,
-            )
-            view = pdk.View(type="OrbitView", controller=True)
+    # put html of 3D vizualization in to dist_col
+    with dist_col:
+        components.html(r.to_html(as_string=True), height=600)
 
-            r = pdk.Deck(point_cloud_layer, initial_view_state=view_state, views=[view])
-
-            with dist_col:
-                components.html(r.to_html(as_string=True), height=600)
-
-        buttons.append(b)
-
-    return buttons
 
 
 def create_filter(file_fetcher, combined_data, sensor, season):
@@ -564,23 +557,42 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     exact_column_name = selected_column_name
     for column_name in combined_data.columns:
         if re.search(
-            f"{selected_column_name}|lon|lat|max|min", column_name, re.IGNORECASE
+            f"{selected_column_name}|lon|lat|max|min|plant_name", column_name, re.IGNORECASE
         ):
             if re.search(selected_column_name, column_name, re.IGNORECASE):
                 exact_column_name = column_name
             selected_columns.append(column_name)
+    
+    # global filtered_df
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     # Add button column
     # INCOMPLETE
+    # if file_fetcher is not None:
+    
+    # add = extra filter to reduce lag
+    if selected_column_name == "genotype":
+        genotype_filter = ["All"]
+        genotype_filter.append(filtered_df['genotype'].unique())
+    
+        selected_genotype = col2.selectbox("Genotype", filtered_df['genotype'].unique())
+        if selected_column_name != "All":
+            filtered_df = filtered_df[filtered_df['genotype'].isin([selected_genotype])]
 
-    if file_fetcher is not None:
-        buttons_fd = create_button_list(
-            file_fetcher, filtered_df
-        )  # INCOMPLETE FUCNCTION
-        filtered_df.insert(0, "Vizualize", buttons_fd, False)
+    # selectable table
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
+
+    # basically a on_click event
+    with col2: 
+        selected = AgGrid(filtered_df, gridOptions=gridOptions) # get which row user selects of the 
+                                                                # displayed aggrid
+
+    if file_fetcher is not None and len(selected.selected_rows) !=0: # actual callback
+            callback(file_fetcher, selected.selected_rows[0]['plant_name'])
+
 
     col2.header("Filtered Data")
-    col2.dataframe(filtered_df)
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),

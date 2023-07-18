@@ -106,6 +106,7 @@ class Fetcher:
                 print(ipath)
                 ply_buffer = self.make_range_request(ipath,start,end)
 
+                print(ply_buffer)
                 with open(res,"wb") as phile:
                     phile.write(ply_buffer)
                     
