@@ -344,10 +344,10 @@ def data_analysis(
         print(crop)
         print(date)
         if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
-        if_name = f"{date}_segmentation_pointclouds_index"
+        if_name = f"{date}_segmentation_pointclouds_index.txt"
         print(if_path)
         try:
-            _session.data_objects.get(if_path)
+            _session.data_objects.get(if_path, if_name)
             file_fetcher = fipc.Fetcher(
                 "individually_called_point_clouds",
                 season,
@@ -485,11 +485,10 @@ def combine_all_csv(path, sensor, crop, date):
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
+
 def callback(file_fetcher, crop_name):
     # make change to accomodate filters bc table is not file
-    plant_3d_data = file_fetcher.download_plant_by_index(
-        crop_name
-    )  # INCOMPLETE
+    plant_3d_data = file_fetcher.download_plant_by_index(crop_name)  # INCOMPLETE
     # no proper return from funciton yet
 
     # return value is not correct path so get correct path
@@ -500,7 +499,7 @@ def callback(file_fetcher, crop_name):
     x_offset = 409000
     y_offset = 3660000
 
-#   adjust based on offsets
+    #   adjust based on offsets
     xs = np.asarray(pcd.points)[:, 0] - x_offset
     ys = np.asarray(pcd.points)[:, 1] - y_offset
     zs = np.asarray(pcd.points)[:, 2]
@@ -508,7 +507,7 @@ def callback(file_fetcher, crop_name):
     df_dict = {"x": xs, "y": ys, "z": zs}
     df = pd.DataFrame(df_dict)
 
-    # set center for camera 
+    # set center for camera
     target = [df.x.mean(), df.y.mean(), df.z.mean()]
 
     point_cloud_layer = pdk.Layer(
@@ -538,7 +537,6 @@ def callback(file_fetcher, crop_name):
         components.html(r.to_html(as_string=True), height=600)
 
 
-
 def create_filter(file_fetcher, combined_data, sensor, season):
     """Creates a dynamic fiter
 
@@ -557,26 +555,28 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     exact_column_name = selected_column_name
     for column_name in combined_data.columns:
         if re.search(
-            f"{selected_column_name}|lon|lat|max|min|plant_name", column_name, re.IGNORECASE
+            f"{selected_column_name}|lon|lat|max|min|plant_name",
+            column_name,
+            re.IGNORECASE,
         ):
             if re.search(selected_column_name, column_name, re.IGNORECASE):
                 exact_column_name = column_name
             selected_columns.append(column_name)
-    
+
     # global filtered_df
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     # Add button column
     # INCOMPLETE
     # if file_fetcher is not None:
-    
+
     # add = extra filter to reduce lag
     if selected_column_name == "genotype":
         genotype_filter = ["All"]
-        genotype_filter.append(filtered_df['genotype'].unique())
-    
-        selected_genotype = col2.selectbox("Genotype", filtered_df['genotype'].unique())
+        genotype_filter.append(filtered_df["genotype"].unique())
+
+        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
         if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df['genotype'].isin([selected_genotype])]
+            filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     # selectable table
     gb = GridOptionsBuilder.from_dataframe(filtered_df)
@@ -584,13 +584,16 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     gridOptions = gb.build()
 
     # basically a on_click event
-    with col2: 
-        selected = AgGrid(filtered_df, gridOptions=gridOptions) # get which row user selects of the 
-                                                                # displayed aggrid
+    with col2:
+        selected = AgGrid(
+            filtered_df, gridOptions=gridOptions
+        )  # get which row user selects of the
+        # displayed aggrid
 
-    if file_fetcher is not None and len(selected.selected_rows) !=0: # actual callback
-            callback(file_fetcher, selected.selected_rows[0]['plant_name'])
-
+    if (
+        file_fetcher is not None and len(selected[selected_rows]) != 0
+    ):  # actual callback
+        callback(file_fetcher, selected.selected_rows[0]["plant_name"])
 
     col2.header("Filtered Data")
     col1.download_button(
