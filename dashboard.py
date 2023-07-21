@@ -361,8 +361,9 @@ def data_analysis(
     result = plant_detect_df.merge(field_book_df, on="plot")
     # if "3D" in sensor or "ps2Top" in sensor:
 
-    result = extra_processing(_session, season, result, sensor, crop, date, layout) # add plant_name for all sensors and also extra processing for 3d data
-    if not result.empty:
+    result_ep = extra_processing(_session, season, result, sensor, crop, date, layout) # add plant_name for all sensors and also extra processing for 3d data
+    if not result_ep.empty:
+        result = result_ep
         # To drop duplicate genotype columns
         result = result.drop("genotype_y", axis=1, errors="ignore")
         result = result.rename(columns={"genotype_x": "genotype"}, errors="ignore")
@@ -385,6 +386,19 @@ def data_analysis(
         if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
         if_name = f"{date}_segmentation_pointclouds_index.txt"
         print("date: ",date)
+        closest_date = find_closest_date(_session, season, date, crop)
+        if not os.path.exists(if_name) and closest_date is not None:
+            # if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
+            if_name_c = f"{closest_date}_segmentation_pointclouds_index.txt"
+            if os.path.exists(if_name_c):
+                file_fetcher = fipc.Fetcher(
+                "individually_called_point_clouds",
+                season,
+                "level_2",
+                date,
+                crop,
+                if_name_c,
+            )
        
         if os.path.exists(if_name):  # if the point cloud selected has already been downloaded
             # create file_fetcher object
@@ -645,6 +659,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
       - combined_data (pandas df): Everything in this dataframe
       - sensor (string): selected sensor
     """
+    print("in create filter")
     filter_options = []
     for column_name in combined_data.columns:
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
@@ -671,7 +686,9 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     # if file_fetcher is not None:
 
     # add = extra filter to reduce lag
+    
     if selected_column_name == "genotype":
+        print("adding extra filter")
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["genotype"].unique())
 
@@ -681,6 +698,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
 
     # selectable table
     if file_fetcher is not None:
+        print("using aggrid")
         gb = GridOptionsBuilder.from_dataframe(filtered_df)
         gb.configure_selection(selection_mode="single", use_checkbox=True)
         gridOptions = gb.build()
@@ -694,6 +712,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
             # print("sending to callback")
             callback(file_fetcher, selected.selected_rows[0]["plant_name"])
     else:
+        print("not using aggrid")
         col2.dataframe(filtered_df)
 
     col2.header("Filtered Data")
@@ -709,6 +728,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
+    print("sending to get_visuals")
     get_visuals(filtered_df, exact_column_name, file_fetcher)
 
 
@@ -720,9 +740,12 @@ def get_visuals(filtered_df, column_name, file_fetcher):
       - column_name (dataframe): Selected column
     """
     # Emmanuel's API key, Might need to change this
+    print("in get_visuals")
     px.set_mapbox_access_token(
         "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
     )
+
+    print("past mabox token")
     fig = px.scatter_mapbox(
         filtered_df,
         lat="lat",
@@ -732,10 +755,11 @@ def get_visuals(filtered_df, column_name, file_fetcher):
         opacity=1,
         mapbox_style="satellite-streets",
     )
+    print("made fig")
 
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
-
+    print("updated traces")
     # Change layout
     fig.update_layout(
         title="Plotly Map",
@@ -744,8 +768,12 @@ def get_visuals(filtered_df, column_name, file_fetcher):
         font=dict(family="Courier New, monospace", size=18, color="RebeccaPurple"),
     )
 
-    plotly_col.plotly_chart(fig, use_container_width=True)
-
+    print("updated layout")
+    try:
+        plotly_col.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        print(e)
+   
     # scatter.selected_points
 
     # dist = px.histogram(filtered_df, x=column_name, color=column_name)
