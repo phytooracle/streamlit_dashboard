@@ -28,7 +28,7 @@ class Fetcher:
     }
 
     # Maybe move this over to dashboard since file must be downloaded there
-    def json_index(self, date, index_filename, writeout=False):
+    def json_index(self, date, index_filename, writeout=True): #, writeout=False
         # index_filename = f"{date}_segmentation_pointclouds_index"
         json_index = {}
 
@@ -90,7 +90,7 @@ class Fetcher:
         
         plant_files = self.index_date.get(plant_name,-1)
         if plant_files != -1:
-            print("\t HIT")
+            # print("\t HIT")
 #             print(json.dumps(plant_files,indent=2))
             # lets go get all the plys on the names we care about
             for ply in plant_files:
@@ -103,10 +103,10 @@ class Fetcher:
                 # if we don't add a 512 to the start we get the tar header also
                 start = ply["block"]*512 + 512
                 end = start+ ply["file_size"]
-                print(ipath)
+                # print(ipath)
                 ply_buffer = self.make_range_request(ipath,start,end)
 
-                print(ply_buffer)
+                # print(ply_buffer)
                 with open(res,"wb") as phile:
                     phile.write(ply_buffer)
                     

@@ -275,6 +275,46 @@ def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_
             tar.extractall()
         os.remove("local_file_delete.tar")
 
+def find_closest_date(_session, season, actual_date, crop):
+    print("attempting to find a close date")
+    ph = actual_date.split("_")
+    ph = ph[0].split("-")
+    ad = datetime(int(ph[0]), int(ph[1]), int(ph[2]))
+
+    # get all the dates of the 3d data for the selected season
+    collection = _session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}"
+        )
+   
+    closest_date_str = None
+    closest_date = None
+    diff = None
+
+    for directory in collection.subcollections:
+        dat = directory.name.split("_")
+        date_dat =  dat[0].split("-")
+
+        nums = []
+        for num in date_dat:
+            if num.isnumeric():
+                nums.append(int(num))
+
+        if len(nums)!=0:
+            date_temp = datetime(nums[0], nums[1], nums[2])
+        # comparison
+            if diff is None:
+                closest_date_str=directory.name
+                closest_date = date_temp
+                diff = abs(ad-closest_date)
+            elif abs(ad-date_temp) < diff:
+                closest_date_str=directory.name
+                closest_date = date_temp
+                diff = abs(ad-closest_date)
+
+    if diff.days <2: # new date must be within one day of the original
+        return closest_date_str
+    else:
+        return None
 
 def data_analysis(
     _session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
@@ -319,8 +359,9 @@ def data_analysis(
     # DISCUSS THIS MERGE TECHNIQUE
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
-    if "3D" in sensor or "ps2Top" in sensor:
-        result = extra_processing(_session, season, result, sensor, crop, date, layout)
+    # if "3D" in sensor or "ps2Top" in sensor:
+
+    result = extra_processing(_session, season, result, sensor, crop, date, layout) # add plant_name for all sensors and also extra processing for 3d data
     if not result.empty:
         # To drop duplicate genotype columns
         result = result.drop("genotype_y", axis=1, errors="ignore")
@@ -340,14 +381,13 @@ def data_analysis(
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
 
-        print(season)
-        print(crop)
-        print(date)
+        # ipath is the path to the index file that holds information for downloading individual point clouds
         if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
         if_name = f"{date}_segmentation_pointclouds_index.txt"
-        print(if_path)
-        try:
-            _session.data_objects.get(if_path, if_name)
+        print("date: ",date)
+       
+        if os.path.exists(if_name):  # if the point cloud selected has already been downloaded
+            # create file_fetcher object
             file_fetcher = fipc.Fetcher(
                 "individually_called_point_clouds",
                 season,
@@ -356,10 +396,45 @@ def data_analysis(
                 crop,
                 if_name,
             )
-            print("sucess fetcher")
-        except Exception as e:
-            print(e)
-            file_fetcher = None
+        else: # if point cloud has not been downloaded
+            try:
+                # try to donwlaoad and build file_fetcher
+                _session.data_objects.get(if_path, if_name)
+                file_fetcher = fipc.Fetcher(
+                    "individually_called_point_clouds",
+                    season,
+                    "level_2",
+                    date,
+                    crop,
+                    if_name,
+                )
+                print("sucess fetcher")
+            except Exception as e:
+                # if failed, check to find closest date since naming conventions with dates could be the problem
+                closest_date = find_closest_date(_session, season, date, crop)
+                if closest_date is not None: # with the closest date try and download and build fetcher again
+                    if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
+                    if_name = f"{closest_date}_segmentation_pointclouds_index.txt"
+                    try:
+                        _session.data_objects.get(if_path, if_name)
+                        file_fetcher = fipc.Fetcher(
+                            "individually_called_point_clouds",
+                            season,
+                            "level_2",
+                            date,
+                            crop,
+                            if_name,
+                        )
+
+                        print("found a close date")
+                    except Exception as e: # if still fail end search and move on
+                        print(e)
+                        print('Did not find a close date')
+                        file_fetcher= None
+                else:
+                    print("did not find a close date")
+                    print(e)
+                    file_fetcher = None
 
         create_filter(file_fetcher, combined_data=result, sensor=sensor, season=season)
 
@@ -405,12 +480,12 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             )
             return pd.DataFrame()
     # for PSII
-    else:
+    elif "ps2Top" in sensor:
         try:
             download_plant_clustering_csv(_session, season, season_no)
             plant_clustering_df = pd.read_csv(
                 f"plant_clustering/season_{season_no}_clustering.csv"
-            ).loc[:, ["plot", "lat", "lon"]]
+            ).loc[:, ["plant_name","plot", "lat", "lon"]]
             combined_df = combined_df.merge(plant_clustering_df, on="plot")
             return combined_df
         except:
@@ -418,7 +493,19 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
                 f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
             )
             return pd.DataFrame()
-
+    else:
+        try:
+            download_plant_clustering_csv(_session, season, season_no)
+            plant_clustering_df = pd.read_csv(
+                f"plant_clustering/season_{season_no}_clustering.csv"
+            ).loc[:, ["plant_name","plot"]]
+            combined_df = combined_df.merge(plant_clustering_df, on="plot")
+            return combined_df
+        except:
+            st.write(
+                f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
+            )
+            return pd.DataFrame()
 
 def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
     if not (os.path.exists(f"3d_volumes_entropy_v009")):
@@ -487,6 +574,7 @@ def combine_all_csv(path, sensor, crop, date):
 
 
 def callback(file_fetcher, crop_name):
+    print(("in callback"))
     # make change to accomodate filters bc table is not file
     plant_3d_data = file_fetcher.download_plant_by_index(crop_name)  # INCOMPLETE
     # no proper return from funciton yet
@@ -507,6 +595,19 @@ def callback(file_fetcher, crop_name):
     df_dict = {"x": xs, "y": ys, "z": zs}
     df = pd.DataFrame(df_dict)
 
+    # gradient = brightest - darkest
+    # [0,255,0] brightest
+    # [255,0,0] darkest 
+    min_z = df_dict['z'].min()
+    max_z = df_dict['z'].max()
+    diff = max_z - min_z
+
+    color_scheme = f"""[
+        0 - (0-255) * (z - {min_z})/{diff}, 
+        255 - 255* (z - {min_z})/{diff}, 
+        0 - 0 * (z - {min_z})/{diff}
+        ]"""
+
     # set center for camera
     target = [df.x.mean(), df.y.mean(), df.z.mean()]
 
@@ -514,8 +615,8 @@ def callback(file_fetcher, crop_name):
         "PointCloudLayer",
         data=df,
         get_position=["x", "y", "z"],
-        get_color=["r", "g", "b"],
-        get_normal=[0, 0, 15],
+        get_color=color_scheme,
+        get_normal=[0, 0, 1],
         auto_highlight=True,
         pickable=True,
         point_size=3,
@@ -579,19 +680,21 @@ def create_filter(file_fetcher, combined_data, sensor, season):
             filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     # selectable table
-    gb = GridOptionsBuilder.from_dataframe(filtered_df)
-    gb.configure_selection(selection_mode="single", use_checkbox=True)
-    gridOptions = gb.build()
+    if file_fetcher is not None:
+        gb = GridOptionsBuilder.from_dataframe(filtered_df)
+        gb.configure_selection(selection_mode="single", use_checkbox=True)
+        gridOptions = gb.build()
 
-    # basically a on_click event
-    with col2:
-        selected = AgGrid(
-            filtered_df, gridOptions=gridOptions
-        )  # get which row user selects of the
-        # displayed aggrid
-
-    if file_fetcher is not None and len(selected.selected_rows) != 0:  # actual callback
-        callback(file_fetcher, selected.selected_rows[0]["plant_name"])
+        # set aggrid table to column two and watch for events
+        with col2:
+            selected = AgGrid( filtered_df, gridOptions=gridOptions) # get which row user selects of the
+    
+        # vizualization on point clouds is possible and a plant was selected use callback
+        if len(selected.selected_rows) != 0: 
+            # print("sending to callback")
+            callback(file_fetcher, selected.selected_rows[0]["plant_name"])
+    else:
+        col2.dataframe(filtered_df)
 
     col2.header("Filtered Data")
     col1.download_button(
