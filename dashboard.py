@@ -282,39 +282,43 @@ def find_closest_date(_session, season, actual_date, crop):
     ad = datetime(int(ph[0]), int(ph[1]), int(ph[2]))
 
     # get all the dates of the 3d data for the selected season
-    collection = _session.collections.get(
+    try:
+        collection = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}"
         )
-   
-    closest_date_str = None
-    closest_date = None
-    diff = None
-
-    for directory in collection.subcollections:
-        dat = directory.name.split("_")
-        date_dat =  dat[0].split("-")
-
-        nums = []
-        for num in date_dat:
-            if num.isnumeric():
-                nums.append(int(num))
-
-        if len(nums)!=0:
-            date_temp = datetime(nums[0], nums[1], nums[2])
-        # comparison
-            if diff is None:
-                closest_date_str=directory.name
-                closest_date = date_temp
-                diff = abs(ad-closest_date)
-            elif abs(ad-date_temp) < diff:
-                closest_date_str=directory.name
-                closest_date = date_temp
-                diff = abs(ad-closest_date)
-
-    if diff.days <2: # new date must be within one day of the original
-        return closest_date_str
-    else:
+    except:
         return None
+    else:
+   
+        closest_date_str = None
+        closest_date = None
+        diff = None
+
+        for directory in collection.subcollections:
+    
+            dat = directory.name.split("_")
+            date_dat =  dat[0].split("-")
+
+            nums = []
+            for num in date_dat:
+                if num.isnumeric():
+                    nums.append(int(num))
+
+            if len(nums)!=0:
+                date_temp = datetime(nums[0], nums[1], nums[2])
+            # comparison
+                if diff is None:
+                    closest_date_str=directory.name
+                    closest_date = date_temp
+                    diff = abs(ad-closest_date)
+                elif abs(ad-date_temp) < diff:
+                    closest_date_str=directory.name
+                    closest_date = date_temp
+                    diff = abs(ad-closest_date)
+        if diff.days <5: # new date must be within one day of the original
+            return closest_date_str
+        else:
+            return None
 
 def data_analysis(
     _session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
@@ -385,10 +389,9 @@ def data_analysis(
         # ipath is the path to the index file that holds information for downloading individual point clouds
         if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{date}/individual_plants_out/{date}_segmentation_pointclouds_index"
         if_name = f"{date}_segmentation_pointclouds_index.txt"
-        print("date: ",date)
         closest_date = find_closest_date(_session, season, date, crop)
+        
         if not os.path.exists(if_name) and closest_date is not None:
-            # if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
             if_name_c = f"{closest_date}_segmentation_pointclouds_index.txt"
             if os.path.exists(if_name_c):
                 file_fetcher = fipc.Fetcher(
@@ -425,7 +428,7 @@ def data_analysis(
                 print("sucess fetcher")
             except Exception as e:
                 # if failed, check to find closest date since naming conventions with dates could be the problem
-                closest_date = find_closest_date(_session, season, date, crop)
+                # closest_date = find_closest_date(_session, season, date, crop)
                 if closest_date is not None: # with the closest date try and download and build fetcher again
                     if_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
                     if_name = f"{closest_date}_segmentation_pointclouds_index.txt"
@@ -513,7 +516,9 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             plant_clustering_df = pd.read_csv(
                 f"plant_clustering/season_{season_no}_clustering.csv"
             ).loc[:, ["plant_name","plot"]]
+        
             combined_df = combined_df.merge(plant_clustering_df, on="plot")
+            os.remove(f"plant_clustering/season_{season_no}_clustering.csv")
             return combined_df
         except:
             st.write(
@@ -686,7 +691,6 @@ def create_filter(file_fetcher, combined_data, sensor, season):
     # if file_fetcher is not None:
 
     # add = extra filter to reduce lag
-    
     if selected_column_name == "genotype":
         print("adding extra filter")
         genotype_filter = ["All"]
@@ -697,25 +701,23 @@ def create_filter(file_fetcher, combined_data, sensor, season):
             filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     # selectable table
-    if file_fetcher is not None:
-        print("using aggrid")
-        gb = GridOptionsBuilder.from_dataframe(filtered_df)
-        gb.configure_selection(selection_mode="single", use_checkbox=True)
-        gridOptions = gb.build()
-
-        # set aggrid table to column two and watch for events
-        with col2:
-            selected = AgGrid( filtered_df, gridOptions=gridOptions) # get which row user selects of the
-    
-        # vizualization on point clouds is possible and a plant was selected use callback
-        if len(selected.selected_rows) != 0: 
-            # print("sending to callback")
-            callback(file_fetcher, selected.selected_rows[0]["plant_name"])
-    else:
-        print("not using aggrid")
-        col2.dataframe(filtered_df)
-
     col2.header("Filtered Data")
+
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
+
+    # set aggrid table to column two and watch for events
+    with col2:
+        selected = AgGrid( filtered_df, gridOptions=gridOptions) # get which row user selects of the
+
+    # vizualization on point clouds is possible and a plant was selected use callback
+    if len(selected.selected_rows) != 0: 
+        # print("sending to callback")
+        callback(file_fetcher, selected.selected_rows[0]["plant_name"])
+   
+
+    
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
@@ -769,10 +771,9 @@ def get_visuals(filtered_df, column_name, file_fetcher):
     )
 
     print("updated layout")
-    try:
-        plotly_col.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        print(e)
+    # fig.show()
+    plotly_col.plotly_chart(fig, use_container_width=True)
+    print("displayed")
    
     # scatter.selected_points
 
