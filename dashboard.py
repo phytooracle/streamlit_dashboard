@@ -276,7 +276,7 @@ def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_
         os.remove("local_file_delete.tar")
 
 def find_closest_date(_session, season, actual_date, crop):
-    print("attempting to find a close date")
+    # print("attempting to find a close date")
     ph = actual_date.split("_")
     ph = ph[0].split("-")
     ad = datetime(int(ph[0]), int(ph[1]), int(ph[2]))
@@ -425,7 +425,7 @@ def data_analysis(
                     crop,
                     if_name,
                 )
-                print("sucess fetcher")
+                # print("sucess fetcher")
             except Exception as e:
                 # if failed, check to find closest date since naming conventions with dates could be the problem
                 # closest_date = find_closest_date(_session, season, date, crop)
@@ -443,13 +443,13 @@ def data_analysis(
                             if_name,
                         )
 
-                        print("found a close date")
+                        # print("found a close date")
                     except Exception as e: # if still fail end search and move on
                         print(e)
-                        print('Did not find a close date')
+                        # print('Did not find a close date')
                         file_fetcher= None
                 else:
-                    print("did not find a close date")
+                    # print("did not find a close date")
                     print(e)
                     file_fetcher = None
 
@@ -510,6 +510,7 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
                 f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
             )
             return pd.DataFrame()
+    # for flirlr and steroTop sensors add plant name
     else:
         try:
             download_plant_clustering_csv(_session, season, season_no)
@@ -518,7 +519,8 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             ).loc[:, ["plant_name","plot"]]
         
             combined_df = combined_df.merge(plant_clustering_df, on="plot")
-            os.remove(f"plant_clustering/season_{season_no}_clustering.csv")
+            # below line did not fix issue
+            # os.remove(f"plant_clustering/season_{season_no}_clustering.csv")
             return combined_df
         except:
             st.write(
@@ -593,10 +595,9 @@ def combine_all_csv(path, sensor, crop, date):
 
 
 def callback(file_fetcher, crop_name):
-    print(("in callback"))
+
     # make change to accomodate filters bc table is not file
     plant_3d_data = file_fetcher.download_plant_by_index(crop_name)  # INCOMPLETE
-    # no proper return from funciton yet
 
     # return value is not correct path so get correct path
     path_final_file = f"individually_called_point_clouds/{crop_name}_timeseries/{file_fetcher.date}_final.ply"
@@ -621,6 +622,7 @@ def callback(file_fetcher, crop_name):
     max_z = df_dict['z'].max()
     diff = max_z - min_z
 
+    # add heatmap of pointcloud
     color_scheme = f"""[
         0 - (0-255) * (z - {min_z})/{diff}, 
         255 - 255* (z - {min_z})/{diff}, 
@@ -664,7 +666,7 @@ def create_filter(file_fetcher, combined_data, sensor, season):
       - combined_data (pandas df): Everything in this dataframe
       - sensor (string): selected sensor
     """
-    print("in create filter")
+    # print("in create filter")
     filter_options = []
     for column_name in combined_data.columns:
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
@@ -684,15 +686,11 @@ def create_filter(file_fetcher, combined_data, sensor, season):
                 exact_column_name = column_name
             selected_columns.append(column_name)
 
-    # global filtered_df
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
-    # Add button column
-    # INCOMPLETE
-    # if file_fetcher is not None:
 
     # add = extra filter to reduce lag
     if selected_column_name == "genotype":
-        print("adding extra filter")
+        # print("adding extra filter")
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["genotype"].unique())
 
@@ -713,7 +711,6 @@ def create_filter(file_fetcher, combined_data, sensor, season):
 
     # vizualization on point clouds is possible and a plant was selected use callback
     if len(selected.selected_rows) != 0: 
-        # print("sending to callback")
         callback(file_fetcher, selected.selected_rows[0]["plant_name"])
    
 
@@ -730,8 +727,9 @@ def create_filter(file_fetcher, combined_data, sensor, season):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
-    print("sending to get_visuals")
+    
     get_visuals(filtered_df, exact_column_name, file_fetcher)
+   
 
 
 def get_visuals(filtered_df, column_name, file_fetcher):
@@ -742,12 +740,11 @@ def get_visuals(filtered_df, column_name, file_fetcher):
       - column_name (dataframe): Selected column
     """
     # Emmanuel's API key, Might need to change this
-    print("in get_visuals")
+   
     px.set_mapbox_access_token(
         "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
     )
 
-    print("past mabox token")
     fig = px.scatter_mapbox(
         filtered_df,
         lat="lat",
@@ -757,11 +754,11 @@ def get_visuals(filtered_df, column_name, file_fetcher):
         opacity=1,
         mapbox_style="satellite-streets",
     )
-    print("made fig")
+  
 
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
-    print("updated traces")
+
     # Change layout
     fig.update_layout(
         title="Plotly Map",
@@ -770,10 +767,8 @@ def get_visuals(filtered_df, column_name, file_fetcher):
         font=dict(family="Courier New, monospace", size=18, color="RebeccaPurple"),
     )
 
-    print("updated layout")
-    # fig.show()
     plotly_col.plotly_chart(fig, use_container_width=True)
-    print("displayed")
+
    
     # scatter.selected_points
 
