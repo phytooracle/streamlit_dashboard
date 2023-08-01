@@ -22,6 +22,7 @@ import fetch_ipc as fipc
 import streamlit.components.v1 as components
 import open3d as o3d
 import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 
 @st.cache_data
@@ -704,7 +705,21 @@ def create_filter(file_fetcher, combined_data, sensor):
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     col2.header("Filtered Data")
-    col2.dataframe(filtered_df)
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
+
+    # set aggrid table to column two and watch for events
+    with col2:
+        selected = AgGrid(
+            filtered_df, gridOptions=gridOptions
+        )  # get which row user selects of the
+
+    # vizualization on point clouds is possible and a plant was selected use callback
+    print(selected)
+    if len(selected["selected_rows"]) != 0:
+        print(selected)
+        callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
@@ -747,7 +762,13 @@ def callback(file_fetcher, crop_name):
     # Use plotly to display stuff
     color_scale = [[0.0, "yellow"], [1.0, "green"]]
     fig = px.scatter_3d(
-        df, x="x", y="y", z="z", color="z", color_continuous_scale=color_scale
+        df,
+        title=crop_name,
+        x="x",
+        y="y",
+        z="z",
+        color="z",
+        color_continuous_scale=color_scale,
     )
 
     fig.update_traces(marker=dict(size=3))
