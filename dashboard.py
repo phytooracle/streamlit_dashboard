@@ -731,10 +731,6 @@ def create_filter(file_fetcher, combined_data, sensor):
         print(selected)
         callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
 
-    # if selected["selected_rows"]:
-    #     print("selected")
-    #     callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
-       
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
