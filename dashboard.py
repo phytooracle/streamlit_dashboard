@@ -1,5 +1,5 @@
 """
-Author: Aditya K. 
+Author: Aditya K. and Emily C. 
 Purpose: A dasboard to visualize and download the results of pipeline processing. 
    Deployed on Streamlit Cloud. 
 
@@ -17,6 +17,12 @@ import os
 import tarfile
 import glob
 import shutil  # remove filled directory to manage space
+import json
+import fetch_ipc as fipc
+import streamlit.components.v1 as components
+import open3d as o3d
+import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 
 @st.cache_data
@@ -72,9 +78,10 @@ def get_sensors(_session, season):
         return sensors
     else:
         for sensor in sensor_collection.subcollections:
-            # might need to modify this for extra sensors - ASK ABOUT DRONE DATA
-            if not re.search("deprecated", sensor.name) and not re.search(
-                "environmentlogger", sensor.name, re.IGNORECASE
+            if (
+                not re.search("deprecated", sensor.name)
+                and not re.search("environmentlogger", sensor.name, re.IGNORECASE)
+                and not re.search("drone", sensor.name, re.IGNORECASE)
             ):
                 sensors.append(sensor.name)
         return sensors
@@ -216,9 +223,6 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
         ],
     )
     cumulative_stats.plotly_chart(full_stats, use_container_width=True)
-    # cumulative_stats.subheader(
-    #     f"**{total_files_ct_all - processed_files_ct_all}** files left for the current processing stage"
-    # )
     sensor_chart = px.bar(
         sensor_df,
         x="sensor",
@@ -283,7 +287,9 @@ def get_dates(_session, season, sensor, crop):
         return dates
     else:
         for directory in season_date_collection.subcollections:
-            if not re.search("dep", directory.name):
+            if not re.search("dep", directory.name) and re.search(
+                "[0-9][0-9a-zA-z]*", directory.name
+            ):
                 dates[directory.name.split("_")[0]] = directory.name
         return dates
 
@@ -407,6 +413,32 @@ def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_
         os.remove("local_file_delete.tar")
 
 
+def create_file_fetcher(_session, season, date, crop):
+    closest_date = find_closest_date(_session, season, date, crop)
+    if closest_date is None:
+        # There are no level 2 point clouds for the chosen date or any date near it
+        file_fetcher = None
+    else:
+        cyverse_idx_path = f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
+        local_idx_path = (
+            f"visualization/{closest_date}_segmentation_pointclouds_index.txt"
+        )
+        # First check if we already have the index files downloaded
+        if not os.path.exists(local_idx_path):
+            if not os.path.exists("visualization"):
+                os.makedirs("visualization")
+            _session.data_objects.get(cyverse_idx_path, local_idx_path)
+        file_fetcher = fipc.Fetcher(
+            "individually_called_point_clouds",
+            season,
+            "level_2",
+            closest_date,
+            crop,
+            local_idx_path,
+        )
+    return file_fetcher
+
+
 def data_analysis(
     _session, season, plant_detect_df, field_book_name, sensor, crop, date, layout
 ):
@@ -449,8 +481,10 @@ def data_analysis(
         return
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
     result = plant_detect_df.merge(field_book_df, on="plot")
-    if "3D" in sensor or "ps2Top" in sensor:
-        result = extra_processing(_session, season, result, sensor, crop, date, layout)
+    copy = extra_processing(_session, season, result, sensor, crop, date, layout)
+    # This is NOT CASE SENSITIVE. KEEP THIS IN MIND. CHANGE IF NECESSARY
+    if not (copy.empty and ("stereo" in sensor or "flir" in sensor)):
+        result = copy
     if not result.empty:
         # To drop duplicate genotype columns
         result = result.drop("genotype_y", axis=1, errors="ignore")
@@ -469,7 +503,9 @@ def data_analysis(
             f"/iplant/home/shared/phytooracle/dashboard_cache/{sensor}/combined_data/{season}_{date}_all.csv",
         )
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
-        create_filter(combined_data=result, sensor=sensor)
+        # GETTING POINT CLOUDS NOW
+        file_fetcher = create_file_fetcher(_session, season, date, crop)
+        create_filter(file_fetcher, combined_data=result, sensor=sensor)
     else:
         # result dataframe is empty, allow the users to download the plant detection csv and fieldbook csv
         st.subheader("Some Error occured (might be a merge issue).")
@@ -488,6 +524,32 @@ def data_analysis(
             file_name=f"{season}_fieldbook.csv",
             mime="text/csv",
         )
+
+
+def find_closest_date(_session, season, actual_date, crop):
+    only_date = actual_date.split("_")[0]
+    actual_date_obj = datetime.strptime(only_date, "%Y-%m-%d")
+    # get all the dates of the 3d data for the selected season
+    try:
+        collection = _session.collections.get(
+            f"/iplant/home/shared/phytooracle/{season}/level_2/scanner3DTop/{crop}"
+        )
+    except:
+        return None
+    else:
+        for unprocessed_date in collection.subcollections:
+            processed_date = unprocessed_date.name.split("_")[0]
+            if only_date == processed_date:
+                return unprocessed_date.name
+        for date_folder in collection.subcollections:
+            potential_date = date_folder.name.split("_")[0]
+            potential_date_obj = datetime.strptime(potential_date, "%Y-%m-%d")
+            if (potential_date_obj == actual_date_obj + timedelta(days=1)) or (
+                potential_date_obj == actual_date_obj - timedelta(days=1)
+            ):
+                return date_folder.name
+        else:
+            return None
 
 
 @st.cache_resource
@@ -529,20 +591,31 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
                 f"Please try any other sensor/season. "
             )
             return pd.DataFrame()
-    # for PSII
+    # for the other sensor (stereoTop, FLIR and PSII)
     else:
         try:
             download_plant_clustering_csv(_session, season, season_no)
-            plant_clustering_df = pd.read_csv(
-                f"plant_clustering/season_{season_no}_clustering.csv"
-            ).loc[:, ["plot", "lat", "lon"]]
-            combined_df = combined_df.merge(plant_clustering_df, on="plot")
-            return combined_df
         except Exception as e:
             st.write(
                 f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
             )
             return pd.DataFrame()
+        else:
+            if re.search("ps2", sensor, re.IGNORECASE):
+                plant_clustering_df = pd.read_csv(
+                    f"plant_clustering/season_{season_no}_clustering.csv"
+                ).loc[:, ["plant_name", "plot", "genotype", "lat", "lon"]]
+                st.dataframe(plant_clustering_df)
+                st.dataframe(combined_df)
+                combined_df = combined_df.merge(
+                    plant_clustering_df, on=["plot", "genotype"]
+                )
+            else:
+                plant_clustering_df = pd.read_csv(
+                    f"plant_clustering/season_{season_no}_clustering.csv"
+                ).loc[:, ["plant_name", "lat", "lon"]]
+                combined_df = combined_df.merge(plant_clustering_df, on=["lat", "lon"])
+            return combined_df
 
 
 def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
@@ -605,13 +678,15 @@ def combine_all_csv(path, sensor, crop, date):
         result_frame.to_csv(
             f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv", index=False
         )
+        print(os.getcwd())
         shutil.rmtree("3d_volumes_entropy_v009")
+
         return result_frame
     else:
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
-def create_filter(combined_data, sensor):
+def create_filter(file_fetcher, combined_data, sensor):
     """Creates a dynamic fiter
 
     Args:
@@ -622,21 +697,39 @@ def create_filter(combined_data, sensor):
     for column_name in combined_data.columns:
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
-    selected_column_name = filter_sec.selectbox("Filter", sorted(filter_options))
+    selected_column_name = filter_sec.selectbox(
+        "Choose an Attribute", sorted(filter_options)
+    )
     col1.header("All Data")
     col1.dataframe(combined_data)
     selected_columns = []
     exact_column_name = selected_column_name
     for column_name in combined_data.columns:
         if re.search(
-            f"{selected_column_name}|lon|lat|max|min", column_name, re.IGNORECASE
+            f"{selected_column_name}|lon|lat|max|min|name|date",
+            column_name,
+            re.IGNORECASE,
         ):
             if re.search(selected_column_name, column_name, re.IGNORECASE):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     col2.header("Filtered Data")
-    col2.dataframe(filtered_df)
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
+
+    # set aggrid table to column two and watch for events
+    with col2:
+        selected = AgGrid(
+            filtered_df, gridOptions=gridOptions
+        )  # get which row user selects of the
+
+    # vizualization on point clouds is possible and a plant was selected use callback
+    print(selected)
+    if len(selected["selected_rows"]) != 0:
+        print(selected)
+        callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
@@ -649,10 +742,50 @@ def create_filter(combined_data, sensor):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
-    get_visuals(filtered_df, exact_column_name)
+    get_visuals(file_fetcher, filtered_df, exact_column_name)
 
 
-def get_visuals(filtered_df, column_name):
+def callback(file_fetcher, crop_name):
+    """
+    Callback function to download 3D data of a plant, read a point cloud file, apply an offset to the x and y coordinates,
+    create a DataFrame from the point cloud data, and generate a 3D scatter plot of the point cloud using Plotly.
+    """
+    # make change to accomodate filters bc table is not file
+    plant_3d_data = file_fetcher.download_plant_by_index(crop_name)
+
+    # return value is not correct path so get correct path
+    path_final_file = f"individually_called_point_clouds/{crop_name}_timeseries/{file_fetcher.date}_final.ply"
+
+    pcd = o3d.io.read_point_cloud(path_final_file)
+    # Apply offset after opening the point cloud
+    x_offset = 409000
+    y_offset = 3660000
+
+    #   adjust based on offsets
+    points = np.asarray(pcd.points)
+    xs = points[:, 0] - x_offset
+    ys = points[:, 1] - y_offset
+    zs = points[:, 2]
+    df_dict = {"x": xs, "y": ys, "z": zs}
+    df = pd.DataFrame(df_dict)
+
+    # Use plotly to display stuff
+    color_scale = [[0.0, "yellow"], [1.0, "green"]]
+    fig = px.scatter_3d(
+        df,
+        title=crop_name,
+        x="x",
+        y="y",
+        z="z",
+        color="z",
+        color_continuous_scale=color_scale,
+    )
+
+    fig.update_traces(marker=dict(size=3))
+    dist_col.plotly_chart(fig, use_container_width=True)
+
+
+def get_visuals(file_fetcher, filtered_df, column_name):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -671,6 +804,7 @@ def get_visuals(filtered_df, column_name):
         zoom=16.6,
         opacity=1,
         mapbox_style="satellite-streets",
+        hover_data=["lat", "lon", column_name, "plant_name"],
     )
 
     # Change color scheme
@@ -685,10 +819,21 @@ def get_visuals(filtered_df, column_name):
     )
 
     plotly_col.plotly_chart(fig, use_container_width=True)
+    individual_plant_visualization(file_fetcher, filtered_df)
 
-    # dist = px.histogram(filtered_df, x=column_name, color=column_name)
-    # dist.update_layout(title=f"{column_name} distribution", autosize=True)
-    # dist_col.plotly_chart(dist, use_container_width=True)
+
+def individual_plant_visualization(file_fetcher, filtered_df):
+    # if plant_name column exists
+    try:
+        column_name = [col for col in filtered_df.columns if "name" in col][0]
+    except:
+        return
+    else:
+        plant_names = filtered_df[column_name].tolist()
+        selected_plant = filter_sec.selectbox(
+            "Select a plant to be visualized: ", sorted(plant_names)
+        )
+        callback(file_fetcher, selected_plant)
 
 
 def main():
@@ -778,11 +923,19 @@ def main():
                         comb_df = pd.read_csv(
                             f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                         )
-                        create_filter(comb_df, selected_sensor)
+                        file_fetcher = create_file_fetcher(
+                            _session,
+                            seasons[selected_season],
+                            dates[selected_date],
+                            selected_crop,
+                        )
+
+                        create_filter(file_fetcher, comb_df, selected_sensor)
                         os.remove(
                             f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                         )
                     except Exception as e:
+                        print(e)
                         plant_detection_csv_path = get_plant_detection_csv_path(
                             _session,
                             seasons[selected_season],
@@ -794,7 +947,7 @@ def main():
                         )
                         if plant_detection_csv_path != "":
                             # Download necessary files (just fieldbook and plantdetection csv for now)
-
+                            print(plant_detection_csv_path)
                             with filter_sec:
                                 with st.spinner(
                                     "This might take some time. Please wait..."
