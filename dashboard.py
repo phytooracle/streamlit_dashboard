@@ -163,14 +163,14 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     )
                     total_files_ct_all += level_0_file_ct
                     processed_files_ct_all += level_X_file_ct
-                    sensor_df = sensor_df.append(
+                    new_row = pd.DataFrame(
                         {
-                            "sensor": sensor,
-                            "processed": level_X_file_ct,
-                            "unprocessed": level_0_file_ct - level_X_file_ct,
-                        },
-                        ignore_index=True,
-                    )
+                        "sensor": [sensor],
+                        "processed": [level_X_file_ct],
+                        "unprocessed": [level_0_file_ct - level_X_file_ct],
+                        }
+                        )
+                    sensor_df = pd.concat([sensor_df, new_row], ignore_index=True)
                     percentage_processed = (level_X_file_ct / level_0_file_ct) * 100
                 else:
                     # A single common file created for RGB higher processing, so if there is a folder
@@ -178,14 +178,14 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     level_0_file_ct = get_and_count_files_in_folder(
                         _session, season, sensor, crop, "level_0"
                     )
-                    sensor_df = sensor_df.append(
+                    new_row = pd.DataFrame(
                         {
-                            "sensor": sensor,
-                            "processed": level_0_file_ct,
-                            "unprocessed": 0,
-                        },
-                        ignore_index=True,
-                    )
+                        "sensor": [sensor],
+                        "processed": [level_X_file_ct],
+                        "unprocessed": [0],
+                        }
+                        )
+                    sensor_df = pd.concat([sensor_df, new_row], ignore_index=True)
                     percentage_processed = 100
                 sensor_data += f"**:green[{sensor.upper()}]** processed to **Level {level_no}** (:orange[{round(percentage_processed, 2)}%]),  "
                 break
