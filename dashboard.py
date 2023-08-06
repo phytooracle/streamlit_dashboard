@@ -543,12 +543,12 @@ def find_closest_date(_session, season, actual_date, crop):
                 return unprocessed_date.name
         for date_folder in collection.subcollections:
             potential_date = date_folder.name.split("_")[0]
-            dist_col.write(potential_date)
-            potential_date_obj = datetime.strptime(potential_date, "%Y-%m-%d")
-            if (potential_date_obj == actual_date_obj + timedelta(days=1)) or (
-                potential_date_obj == actual_date_obj - timedelta(days=1)
-            ):
-                return date_folder.name
+            if potential_date.isnumeric():
+                potential_date_obj = datetime.strptime(potential_date, "%Y-%m-%d")
+                if (potential_date_obj == actual_date_obj + timedelta(days=1)) or (
+                    potential_date_obj == actual_date_obj - timedelta(days=1)
+                ):
+                    return date_folder.name
         else:
             return None
 
