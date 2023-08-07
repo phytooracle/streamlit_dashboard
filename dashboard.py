@@ -163,7 +163,7 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     )
                     total_files_ct_all += level_0_file_ct
                     processed_files_ct_all += level_X_file_ct
-                    sensor_df = sensor_df.append(
+                    sensor_df = sensor_df._append(
                         {
                             "sensor": sensor,
                             "processed": level_X_file_ct,
@@ -178,7 +178,7 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     level_0_file_ct = get_and_count_files_in_folder(
                         _session, season, sensor, crop, "level_0"
                     )
-                    sensor_df = sensor_df.append(
+                    sensor_df = sensor_df._append(
                         {
                             "sensor": sensor,
                             "processed": level_0_file_ct,
@@ -543,11 +543,12 @@ def find_closest_date(_session, season, actual_date, crop):
                 return unprocessed_date.name
         for date_folder in collection.subcollections:
             potential_date = date_folder.name.split("_")[0]
-            potential_date_obj = datetime.strptime(potential_date, "%Y-%m-%d")
-            if (potential_date_obj == actual_date_obj + timedelta(days=1)) or (
-                potential_date_obj == actual_date_obj - timedelta(days=1)
-            ):
-                return date_folder.name
+            if re.match("\d\d\d\d-\d\d-\d\d", potential_date):
+                potential_date_obj = datetime.strptime(potential_date, "%Y-%m-%d")
+                if (potential_date_obj == actual_date_obj + timedelta(days=1)) or (
+                    potential_date_obj == actual_date_obj - timedelta(days=1)
+                ):
+                    return date_folder.name
         else:
             return None
 
@@ -684,7 +685,10 @@ def create_filter(file_fetcher, combined_data, sensor):
       - sensor (string): selected sensor
     """
     filter_options = []
+    pn_exists=False
     for column_name in combined_data.columns:
+        if column_name == "plant_name":
+            pn_exists = True
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
     selected_column_name = filter_sec.selectbox(
@@ -706,30 +710,32 @@ def create_filter(file_fetcher, combined_data, sensor):
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
     # adds extra genotype filter to reduce lag
-    if selected_column_name == "genotype":
+    if file_fetcher is not None and selected_column_name == "genotype":
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["genotype"].unique())
 
         selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
-
-    col2.header("Filtered Data")
-    gb = GridOptionsBuilder.from_dataframe(filtered_df)
-    gb.configure_selection(selection_mode="single", use_checkbox=True)
-    gridOptions = gb.build()
-
     
-    # set aggrid table to column two and watch for events
-    with col2:
-        selected = AgGrid(
-            filtered_df, gridOptions=gridOptions
-        )  # get which row user selects of the
 
-    # vizualization on point clouds is possible and a plant was selected use callback
-    if selected["selected_rows"]:
-        print(selected)
-        callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
+        col2.header("Filtered Data")
+        gb = GridOptionsBuilder.from_dataframe(filtered_df)
+        gb.configure_selection(selection_mode="single", use_checkbox=True)
+        gridOptions = gb.build()
+
+        # set aggrid table to column two and watch for events
+        with col2:
+            selected = AgGrid(
+                filtered_df, gridOptions=gridOptions
+            )  # get which row user selects of the
+
+        # vizualization on point clouds is possible and a plant was selected use callback
+        if selected["selected_rows"]:
+            callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
+    else:
+        col2.header("Filtered Data")
+        col2.dataframe(filtered_df)
 
     col1.download_button(
         label="Download All Data",
@@ -743,7 +749,7 @@ def create_filter(file_fetcher, combined_data, sensor):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
-    get_visuals(file_fetcher, filtered_df, exact_column_name)
+    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
 
 
 def callback(file_fetcher, crop_name):
@@ -786,7 +792,7 @@ def callback(file_fetcher, crop_name):
     dist_col.plotly_chart(fig, use_container_width=True)
 
 
-def get_visuals(file_fetcher, filtered_df, column_name):
+def get_visuals(file_fetcher, filtered_df, column_name, pn_exists):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -797,16 +803,28 @@ def get_visuals(file_fetcher, filtered_df, column_name):
     px.set_mapbox_access_token(
         "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
     )
-    fig = px.scatter_mapbox(
-        filtered_df,
-        lat="lat",
-        lon="lon",
-        color=column_name,
-        zoom=16.6,
-        opacity=1,
-        mapbox_style="satellite-streets",
-        hover_data=["lat", "lon", column_name, "plant_name"],
-    )
+    if pn_exists:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name, "plant_name"],
+        )
+    else:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name],
+        )
 
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
