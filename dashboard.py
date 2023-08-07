@@ -710,7 +710,9 @@ def create_filter(file_fetcher, combined_data, sensor):
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
     
     col2.header("Filtered Data")
-    extra = {"alwaysShowVerticalScroll": True}
+    extra = {"alwaysShowVerticalScroll": True,
+             "alwaysShowHorizontalScroll": True}
+    
     gb = GridOptionsBuilder.from_dataframe(filtered_df)
     gb.configure_grid_options(**extra)
     gb.configure_selection(selection_mode="single", use_checkbox=True)
