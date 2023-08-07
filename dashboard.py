@@ -710,35 +710,35 @@ def create_filter(file_fetcher, combined_data, sensor):
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
     # adds extra genotype filter to reduce lag
-    if file_fetcher is not None and selected_column_name == "genotype":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["genotype"].unique())
+    # if file_fetcher is not None and selected_column_name == "genotype":
+        # genotype_filter = ["All"]
+        # genotype_filter.append(filtered_df["genotype"].unique())
 
-        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
+        # selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
+        # if selected_column_name != "All":
+        #     filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
     
 
-        col2.header("Filtered Data")
-        extra = {"alwaysShowVerticalScroll": True}
-        gb = GridOptionsBuilder.from_dataframe(filtered_df)
-        # gb.configure_auto_height(False)
-        gb.configure_grid_options(**extra)
-        gb.configure_selection(selection_mode="single", use_checkbox=True)
-        gridOptions = gb.build()
+    col2.header("Filtered Data")
+    extra = {"alwaysShowVerticalScroll": True}
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    # gb.configure_auto_height(False)
+    gb.configure_grid_options(**extra)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
 
-        # set aggrid table to column two and watch for events
-        with col2:
-            selected = AgGrid(
-                filtered_df, gridOptions=gridOptions, height=300
-            )  # get which row user selects of the
+    # set aggrid table to column two and watch for events
+    with col2:
+        selected = AgGrid(
+            filtered_df, gridOptions=gridOptions, height=300
+        )  # get which row user selects of the
 
         # vizualization on point clouds is possible and a plant was selected use callback
         if selected["selected_rows"]:
             callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
-    else:
-        col2.header("Filtered Data")
-        col2.dataframe(filtered_df)
+    # else:
+    #     col2.header("Filtered Data")
+    #     col2.dataframe(filtered_df)
 
     col1.download_button(
         label="Download All Data",
