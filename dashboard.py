@@ -730,7 +730,7 @@ def create_filter(file_fetcher, combined_data, sensor):
         # set aggrid table to column two and watch for events
         with col2:
             selected = AgGrid(
-                filtered_df, gridOptions=gridOptions
+                filtered_df, gridOptions=gridOptions, height=200
             )  # get which row user selects of the
 
         # vizualization on point clouds is possible and a plant was selected use callback
