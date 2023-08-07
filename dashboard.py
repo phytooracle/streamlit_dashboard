@@ -721,6 +721,7 @@ def create_filter(file_fetcher, combined_data, sensor):
 
         col2.header("Filtered Data")
         gb = GridOptionsBuilder.from_dataframe(filtered_df)
+        gb.configure_auto_height(False)
         gb.configure_selection(selection_mode="single", use_checkbox=True)
         gridOptions = gb.build()
 
