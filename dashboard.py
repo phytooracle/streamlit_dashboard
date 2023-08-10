@@ -165,11 +165,11 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     processed_files_ct_all += level_X_file_ct
                     new_row = pd.DataFrame(
                         {
-                        "sensor": [sensor],
-                        "processed": [level_X_file_ct],
-                        "unprocessed": [level_0_file_ct - level_X_file_ct],
+                            "sensor": [sensor],
+                            "processed": [level_X_file_ct],
+                            "unprocessed": [level_0_file_ct - level_X_file_ct],
                         }
-                        )
+                    )
                     sensor_df = pd.concat([sensor_df, new_row], ignore_index=True)
                     percentage_processed = (level_X_file_ct / level_0_file_ct) * 100
                 else:
@@ -180,11 +180,11 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                     )
                     new_row = pd.DataFrame(
                         {
-                        "sensor": [sensor],
-                        "processed": [level_X_file_ct],
-                        "unprocessed": [0],
+                            "sensor": [sensor],
+                            "processed": [level_X_file_ct],
+                            "unprocessed": [0],
                         }
-                        )
+                    )
                     sensor_df = pd.concat([sensor_df, new_row], ignore_index=True)
                     percentage_processed = 100
                 sensor_data += f"**:green[{sensor.upper()}]** processed to **Level {level_no}** (:orange[{round(percentage_processed, 2)}%]),  "
@@ -413,6 +413,7 @@ def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_
         os.remove("local_file_delete.tar")
 
 
+@st.cache_resource
 def create_file_fetcher(_session, season, date, crop):
     closest_date = find_closest_date(_session, season, date, crop)
     if closest_date is None:
@@ -526,6 +527,7 @@ def data_analysis(
         )
 
 
+@st.cache_resource
 def find_closest_date(_session, season, actual_date, crop):
     only_date = actual_date.split("_")[0]
     actual_date_obj = datetime.strptime(only_date, "%Y-%m-%d")
@@ -619,6 +621,7 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
             return combined_df
 
 
+@st.cache_data
 def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
     if not (os.path.exists(f"3d_volumes_entropy_v009")):
         collection = _session.collections.get(
@@ -638,6 +641,7 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
         os.remove("local_file_delete.tar")
 
 
+@st.cache_data
 def download_plant_clustering_csv(_session, season, season_no):
     if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
         if not os.path.exists("plant_clustering"):
@@ -695,14 +699,35 @@ def create_filter(file_fetcher, combined_data, sensor):
       - sensor (string): selected sensor
     """
     filter_options = []
+    pn_exists = False
+    extra = {
+        "alwaysShowVerticalScroll": True,
+        "alwaysShowHorizontalScroll": True,
+        "autoHeight": True,
+    }
+
     for column_name in combined_data.columns:
+        if column_name == "plant_name":
+            pn_exists = True
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
     selected_column_name = filter_sec.selectbox(
         "Choose an Attribute", sorted(filter_options)
     )
     col1.header("All Data")
-    col1.dataframe(combined_data)
+    all_gb = GridOptionsBuilder.from_dataframe(combined_data)
+    # configure column definitions
+    for column_name in combined_data.columns:
+        all_gb.configure_column(column_name, filter=True)
+    all_gb.configure_grid_options(**extra)
+    gridOptions = all_gb.build()
+    with col1:
+        selected = AgGrid(
+            combined_data,
+            gridOptions=gridOptions,
+            theme="balham",
+            height=450,
+        )
     selected_columns = []
     exact_column_name = selected_column_name
     for column_name in combined_data.columns:
@@ -715,22 +740,29 @@ def create_filter(file_fetcher, combined_data, sensor):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
+
     col2.header("Filtered Data")
-    gb = GridOptionsBuilder.from_dataframe(filtered_df)
-    gb.configure_selection(selection_mode="single", use_checkbox=True)
-    gridOptions = gb.build()
+    filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    # configure column definitions
+    for column_name in filtered_df.columns:
+        filtered_gb.configure_column(column_name, filter=True)
+    filtered_gb.configure_grid_options(**extra)
+    filtered_gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = filtered_gb.build()
 
     # set aggrid table to column two and watch for events
     with col2:
         selected = AgGrid(
-            filtered_df, gridOptions=gridOptions
+            filtered_df,
+            gridOptions=gridOptions,
+            theme="balham",
+            height=450,
         )  # get which row user selects of the
 
-    # vizualization on point clouds is possible and a plant was selected use callback
-    print(selected)
-    if len(selected["selected_rows"]) != 0:
-        print(selected)
-        callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
+        # vizualization on point clouds is possible and a plant was selected use callback
+        if selected["selected_rows"]:
+            callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
+
     col1.download_button(
         label="Download All Data",
         data=convert_df(combined_data),
@@ -743,7 +775,7 @@ def create_filter(file_fetcher, combined_data, sensor):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
-    get_visuals(file_fetcher, filtered_df, exact_column_name)
+    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
 
 
 def callback(file_fetcher, crop_name):
@@ -769,7 +801,6 @@ def callback(file_fetcher, crop_name):
     zs = points[:, 2]
     df_dict = {"x": xs, "y": ys, "z": zs}
     df = pd.DataFrame(df_dict)
-
     # Use plotly to display stuff
     color_scale = [[0.0, "yellow"], [1.0, "green"]]
     fig = px.scatter_3d(
@@ -786,7 +817,7 @@ def callback(file_fetcher, crop_name):
     dist_col.plotly_chart(fig, use_container_width=True)
 
 
-def get_visuals(file_fetcher, filtered_df, column_name):
+def get_visuals(file_fetcher, filtered_df, column_name, pn_exists):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -797,16 +828,28 @@ def get_visuals(file_fetcher, filtered_df, column_name):
     px.set_mapbox_access_token(
         "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
     )
-    fig = px.scatter_mapbox(
-        filtered_df,
-        lat="lat",
-        lon="lon",
-        color=column_name,
-        zoom=16.6,
-        opacity=1,
-        mapbox_style="satellite-streets",
-        hover_data=["lat", "lon", column_name, "plant_name"],
-    )
+    if pn_exists:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name, "plant_name"],
+        )
+    else:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name],
+        )
 
     # Change color scheme
     fig.update_traces(marker=dict(colorscale="Viridis"))
@@ -820,21 +863,6 @@ def get_visuals(file_fetcher, filtered_df, column_name):
     )
 
     plotly_col.plotly_chart(fig, use_container_width=True)
-    individual_plant_visualization(file_fetcher, filtered_df)
-
-
-def individual_plant_visualization(file_fetcher, filtered_df):
-    # if plant_name column exists
-    try:
-        column_name = [col for col in filtered_df.columns if "name" in col][0]
-    except:
-        return
-    else:
-        plant_names = filtered_df[column_name].tolist()
-        selected_plant = filter_sec.selectbox(
-            "Select a plant to be visualized: ", sorted(plant_names)
-        )
-        callback(file_fetcher, selected_plant)
 
 
 def main():
