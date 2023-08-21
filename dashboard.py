@@ -125,15 +125,6 @@ def get_crops(_session, season, sensor, alt_layout):
 
 @st.cache_resource
 def display_processing_info(_session, seasons, selected_season, sensors, crop):
-    """This is the function
-
-    Args:
-        _session (_type_): _description_
-        seasons (_type_): _description_
-        selected_season (_type_): _description_
-        sensors (_type_): _description_
-        crop (_type_): _description_
-    """
     info_sec = st.container()
     info_sec.divider()
     info_sec.header(":blue[Processing Information]")
@@ -424,14 +415,6 @@ def download_plant_detection_csv(_session, local_file_name, plant_detection_csv_
 
 @st.cache_resource
 def create_file_fetcher(_session, season, date, crop):
-    """
-    Create the the ind. point cloud fetcher for the given params
-    - _session (irodsSession): A _session object that allows the program to query data
-      from the Cyverse datastore.
-    - season (string): The actual name that appears on cyverse for the selected season
-    - date (string): The date selected by the user (w time)
-
-    """
     closest_date = find_closest_date(_session, season, date, crop)
     if closest_date is None:
         # There are no level 2 point clouds for the chosen date or any date near it
@@ -546,17 +529,6 @@ def data_analysis(
 
 @st.cache_resource
 def find_closest_date(_session, season, actual_date, crop):
-    """+/-1 date for 3d
-
-    Args:
-        _session (irodssession): _description_
-        season (string): _description_
-        actual_date (string): _description_
-        crop (string): _description_
-
-    Returns:
-        string: closest date.
-    """
     only_date = actual_date.split("_")[0]
     actual_date_obj = datetime.strptime(only_date, "%Y-%m-%d")
     # get all the dates of the 3d data for the selected season
@@ -605,7 +577,7 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
     if "3D" in sensor:
         try:
             download_extra_3D_data(_session, season, season_no, sensor, crop, date)
-            download_plant_clustering_csv(_session, season, sensor, season_no)
+            download_plant_clustering_csv(_session, season, season_no)
             ind_plant_df = combine_all_csv(
                 "3d_volumes_entropy_v009", sensor, crop, date
             )
@@ -625,7 +597,7 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
     # for the other sensor (stereoTop, FLIR and PSII)
     else:
         try:
-            download_plant_clustering_csv(_session, season, sensor, season_no)
+            download_plant_clustering_csv(_session, season, season_no)
         except Exception as e:
             st.write(
                 f"Couldn't find the plant clustering CSV file for this season. Contact Phytooracle staff."
@@ -636,6 +608,8 @@ def extra_processing(_session, season, combined_df, sensor, crop, date, alt_layo
                 plant_clustering_df = pd.read_csv(
                     f"plant_clustering/season_{season_no}_clustering.csv"
                 ).loc[:, ["plant_name", "plot", "genotype", "lat", "lon"]]
+                st.dataframe(plant_clustering_df)
+                st.dataframe(combined_df)
                 combined_df = combined_df.merge(
                     plant_clustering_df, on=["plot", "genotype"]
                 )
@@ -668,40 +642,23 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
 
 
 @st.cache_data
-def download_plant_clustering_csv(_session, season, sensor, season_no):
-    """
-    Download Plant clustering CSV (or agglomerative one for flirIrCamera)
-    Make sure that the the flirIr name is being matched correctly
-    """
-    if not (os.path.exists(f"plant_clustering/season_{season_no}_{sensor == "flirIrCamera"}_clustering.csv")):
+def download_plant_clustering_csv(_session, season, season_no):
+    if not (os.path.exists(f"plant_clustering/season_{season_no}_clustering.csv")):
         if not os.path.exists("plant_clustering"):
             os.makedirs("plant_clustering")
         detection_combined = _session.collections.get(
-                f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
-                f"season_{season_no}_plant_detection_combined"
-            )
+            f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
+            f"season_{season_no}_plant_detection_combined"
+        )
         for item in detection_combined.data_objects:
-            # CHECK THESE IF STATEMENTS 
-            if "agglomerative" in item.name and re.search("flir", sensor, re.IGNORECASE):
-                _session.data_objects.get(
-                    f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
-                    f"season_{season_no}_plant_detection_combined/"
-                    f"{item.name}",
-                    f"plant_clustering/season_{season_no}_{sensor == "flirIrCamera"}_clustering.csv",
-                    force=True,
-                )
-                break
-            else if "agglomerative" not in item.name and not re.search("flir", "sensor", re.IGNORCASE):
-                _session.data_objects.get(
-                    f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
-                    f"season_{season_no}_plant_detection_combined/"
-                    f"{item.name}",
-                    f"plant_clustering/season_{season_no}_{sensor == "flirIrCamera"}_clustering.csv",
-                    force=True,
-                )
-                break
-
-
+            _session.data_objects.get(
+                f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
+                f"season_{season_no}_plant_detection_combined/"
+                f"{item.name}",
+                f"plant_clustering/season_{season_no}_clustering.csv",
+                force=True,
+            )
+            break
 
 
 @st.cache_resource
@@ -723,14 +680,14 @@ def combine_all_csv(path, sensor, crop, date):
             li.append(df)
 
         result_frame = pd.concat(li, axis=0, ignore_index=True)
-        shutil.rmtree("3d_volumes_entropy_v009")
         result_frame.to_csv(
             f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv", index=False
         )
+        print(os.getcwd())
+        shutil.rmtree("3d_volumes_entropy_v009")
+
         return result_frame
     else:
-        if os.path.exists("3d_volumes_entropy_v009"):
-            shutil.rmtree("3d_volumes_entropy_v009")
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
@@ -783,6 +740,7 @@ def create_filter(file_fetcher, combined_data, sensor):
                 exact_column_name = column_name
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
+
     col2.header("Filtered Data")
     filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
     # configure column definitions
@@ -994,17 +952,19 @@ def main():
                         comb_df = pd.read_csv(
                             f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                         )
-                        os.remove(
-                            f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
-                        )
                         file_fetcher = create_file_fetcher(
                             _session,
                             seasons[selected_season],
                             dates[selected_date],
                             selected_crop,
                         )
+
                         create_filter(file_fetcher, comb_df, selected_sensor)
+                        os.remove(
+                            f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                        )
                     except Exception as e:
+                        print(e)
                         plant_detection_csv_path = get_plant_detection_csv_path(
                             _session,
                             seasons[selected_season],
@@ -1016,6 +976,7 @@ def main():
                         )
                         if plant_detection_csv_path != "":
                             # Download necessary files (just fieldbook and plantdetection csv for now)
+                            print(plant_detection_csv_path)
                             with filter_sec:
                                 with st.spinner(
                                     "This might take some time. Please wait..."
