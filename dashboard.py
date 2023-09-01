@@ -741,6 +741,33 @@ def create_filter(file_fetcher, combined_data, sensor):
             selected_columns.append(column_name)
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
+    if selected_column_name == "genotype":
+        genotype_filter = ["All"]
+        genotype_filter.append(filtered_df["genotype"].unique())
+
+        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
+        if selected_column_name != "All":
+            filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
+
+    if selected_column_name == "range":
+        genotype_filter = ["All"]
+        genotype_filter.append(filtered_df["range"].unique())
+
+        selected_range = col2.selectbox("Range", filtered_df["range"].unique())
+        if selected_column_name != "All":
+            filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
+
+    if selected_column_name == "plot":
+        genotype_filter = ["All"]
+        genotype_filter.append(filtered_df["plot"].unique())
+
+        selected_plot = col2.selectbox("Plot", filtered_df["plot"].unique())
+        if selected_column_name != "All":
+            filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
+
+
+
+
     col2.header("Filtered Data")
     filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
     # configure column definitions
