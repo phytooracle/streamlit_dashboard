@@ -968,6 +968,11 @@ def main():
                     selected_date = st.sidebar.select_slider(
                         "Select a date: ", options=display_dates
                     )
+                    date_two = st.sidebar.checkbox("Select another date")
+                    if date_two:
+                        selected_date_two = st.sidebar.select_slider(
+                            "Select a second date date: ", options=display_dates
+                        )
                     filter_sec.header(":blue[Data and its Visualization]")
                     try:
                         _session.data_objects.get(
