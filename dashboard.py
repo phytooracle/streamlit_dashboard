@@ -742,28 +742,26 @@ def create_filter(file_fetcher, combined_data, sensor):
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
     if selected_column_name == "genotype":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["genotype"].unique())
-
-        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
+        
+        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique(), key="gf_date_one")
+        
+        filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     if selected_column_name == "range":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["range"].unique())
-
-        selected_range = col2.selectbox("Range", filtered_df["range"].unique())
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
+        
+        selected_range = col2.select_slider(
+                        "Select a range: ", options=filtered_df["range"].unique()
+                    )
+       
+        filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
 
     if selected_column_name == "plot":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["plot"].unique())
-
-        selected_plot = col2.selectbox("Plot", filtered_df["plot"].unique())
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
+        
+        selected_plot = col2.select_slider(
+                        "Select a plot: ", options=filtered_df["plot"].unique()
+                    )
+        
+        filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
 
 
 
