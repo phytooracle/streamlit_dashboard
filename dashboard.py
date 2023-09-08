@@ -785,33 +785,26 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
     if selected_column_name == "genotype":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["genotype"].unique())
-
-        selected_genotype = col2.selectbox("Genotype", genotype_filter, key="gf_date_one")
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
+        
+        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique(), key="gf_date_one")
+        
+        filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     if selected_column_name == "range":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["range"].unique())
-
-        selected_range = st.sidebar.select_slider(
+        
+        selected_range = col2.select_slider(
                         "Select a range: ", options=filtered_df["range"].unique()
                     )
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
+       
+        filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
 
     if selected_column_name == "plot":
-        plot_filter = ["All"]
-        plot_filter.append(filtered_df["plot"].unique())
         
-        selected_plot = st.sidebar.select_slider(
-                        "Select a plot: ", options=plot_filter
+        selected_plot = col2.select_slider(
+                        "Select a plot: ", options=filtered_df["plot"].unique()
                     )
         
-        if selected_column_name != "All":
-            filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
+        filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
 
     col2.header(f"Filtered Data: {date}")
     filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
