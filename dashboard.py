@@ -1194,7 +1194,7 @@ def main():
                                 f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv",
                                 force=True,
                             )
-                            comb_df = pd.read_csv(
+                            comb_df_two = pd.read_csv(
                                 f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"
                             )
                             file_fetcher_two = create_file_fetcher(
