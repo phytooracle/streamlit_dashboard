@@ -506,7 +506,8 @@ def data_analysis(
         os.remove(f"{sensor}_{season}_{crop}_{date}.csv")
         # GETTING POINT CLOUDS NOW
         file_fetcher = create_file_fetcher(_session, season, date, crop)
-        create_filter(file_fetcher, combined_data=result, sensor=sensor)
+        return file_fetcher, result
+        # create_filter(file_fetcher, combined_data=result, sensor=sensor)
     else:
         # result dataframe is empty, allow the users to download the plant detection csv and fieldbook csv
         st.subheader("Some Error occured (might be a merge issue).")
@@ -518,13 +519,16 @@ def data_analysis(
             data=convert_df(plant_detect_df),
             file_name=f"{date}_plant_detect_out.csv",
             mime="text/csv",
+            key="data_frame_empty_download_csv"
         )
         st.download_button(
             label="Download Fieldbook Data",
             data=convert_df(field_book_df),
             file_name=f"{season}_fieldbook.csv",
             mime="text/csv",
+            key="data_frame_empty_download_fieldbook"
         )
+        return None, None
 
 
 @st.cache_resource
@@ -691,7 +695,7 @@ def combine_all_csv(path, sensor, crop, date):
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
-def create_filter(file_fetcher, combined_data, sensor):
+def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combined_data_two, date, date_two):
     """Creates a dynamic fiter
 
     Args:
@@ -714,7 +718,19 @@ def create_filter(file_fetcher, combined_data, sensor):
     selected_column_name = filter_sec.selectbox(
         "Choose an Attribute", sorted(filter_options)
     )
-    col1.header("All Data")
+
+    if combined_data_two is not None:
+        date_options = [date, date_two]
+
+        date_to_visualize = filter_sec.selectbox(
+        "Choose which date to visualize", date_options
+    )
+    else:
+        date_to_visualize = None
+
+
+    col1.header(f"All Data: {date}")
+
     all_gb = GridOptionsBuilder.from_dataframe(combined_data)
     # configure column definitions
     for column_name in combined_data.columns:
@@ -727,7 +743,34 @@ def create_filter(file_fetcher, combined_data, sensor):
             gridOptions=gridOptions,
             theme="balham",
             height=450,
+            key="all_data_date_one"
         )
+
+    col1.download_button(
+        label="Download All Data",
+        data=convert_df(combined_data),
+        file_name=f"{combined_data.iloc[0, 0]}_combined_data.csv",
+        mime="text/csv",
+        key="all_data_download_date_one"
+    )
+
+    if combined_data_two is not None:
+        col1.header(f"All Data: {date_two}")
+        all_gb_two = GridOptionsBuilder.from_dataframe(combined_data_two)
+        for column_name in combined_data_two.columns:
+            all_gb_two.configure_column(column_name, filter=True)
+        all_gb_two.configure_grid_options(**extra)
+        gridOptions = all_gb_two.build()
+        with col1:
+            selected = AgGrid(
+                combined_data,
+                gridOptions=gridOptions,
+                theme="balham",
+                height=450,
+                key="all_data_date_two"
+            )
+
+
     selected_columns = []
     exact_column_name = selected_column_name
     for column_name in combined_data.columns:
@@ -745,7 +788,7 @@ def create_filter(file_fetcher, combined_data, sensor):
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["genotype"].unique())
 
-        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique())
+        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique(), key="gf_date_one")
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
@@ -753,7 +796,7 @@ def create_filter(file_fetcher, combined_data, sensor):
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["range"].unique())
 
-        selected_range = col2.selectbox("Range", filtered_df["range"].unique())
+        selected_range = col2.selectbox("Range", filtered_df["range"].unique(), key="rf_date_one")
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
 
@@ -761,14 +804,11 @@ def create_filter(file_fetcher, combined_data, sensor):
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["plot"].unique())
 
-        selected_plot = col2.selectbox("Plot", filtered_df["plot"].unique())
+        selected_plot = col2.selectbox("Plot", filtered_df["plot"].unique(), key="pf_date_one")
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
 
-
-
-
-    col2.header("Filtered Data")
+    col2.header(f"Filtered Data: {date}")
     filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
     # configure column definitions
     for column_name in filtered_df.columns:
@@ -784,25 +824,93 @@ def create_filter(file_fetcher, combined_data, sensor):
             gridOptions=gridOptions,
             theme="balham",
             height=450,
+            key="filtered_data_date_one"
         )  # get which row user selects of the
 
         # vizualization on point clouds is possible and a plant was selected use callback
         if selected["selected_rows"]:
             callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
 
-    col1.download_button(
-        label="Download All Data",
-        data=convert_df(combined_data),
-        file_name=f"{combined_data.iloc[0, 0]}_combined_data.csv",
-        mime="text/csv",
-    )
+    
     col2.download_button(
         label="Download Filtered Data (Co-ordinates + Selected Field)",
         data=convert_df(filtered_df),
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
+        key="filtered_data_download_date_one"
     )
-    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
+
+    if combined_data_two is not None:
+
+        filtered_df_two = combined_data_two.loc[:, combined_data_two.columns.isin(selected_columns)]
+
+        if selected_column_name == "genotype":
+            genotype_filter = ["All"]
+            genotype_filter.append(filtered_df_two["genotype"].unique())
+
+            selected_genotype = col2.selectbox("Genotype", filtered_df_two["genotype"].unique(), key="gf_date_two")
+            if selected_column_name != "All":
+                filtered_df_two = filtered_df_two[filtered_df_two["genotype"].isin([selected_genotype])]
+
+        if selected_column_name == "range":
+            genotype_filter = ["All"]
+            genotype_filter.append(filtered_df_two["range"].unique())
+
+            selected_range = col2.selectbox("Range", filtered_df_two["range"].unique(), key="rf_date_two")
+            if selected_column_name != "All":
+                filtered_df_two = filtered_df_two[filtered_df_two["range"].isin([selected_range])]
+
+        if selected_column_name == "plot":
+            genotype_filter = ["All"]
+            genotype_filter.append(filtered_df_two["plot"].unique())
+
+            selected_plot = col2.selectbox("Plot", filtered_df_two["plot"].unique(), key="pf_date_two")
+            if selected_column_name != "All":
+                filtered_df_two = filtered_df_two[filtered_df_two["plot"].isin([selected_plot])]
+
+        col2.header(f"Filtered Data: {date_two}")
+        filtered_gb_two = GridOptionsBuilder.from_dataframe(filtered_df_two)
+            # configure column definitions
+        for column_name in filtered_df_two.columns:
+            filtered_gb_two.configure_column(column_name, filter=True)
+        filtered_gb_two.configure_grid_options(**extra)
+        filtered_gb_two.configure_selection(selection_mode="single", use_checkbox=True)
+        gridOptions = filtered_gb_two.build()
+
+        # set aggrid table to column two and watch for events
+        with col2:
+            selected_two = AgGrid(
+                filtered_df_two,
+                gridOptions=gridOptions,
+                theme="balham",
+                height=450,
+                key="filtered_data_date_two"
+            )  # get which row user selects of the
+
+            # vizualization on point clouds is possible and a plant was selected use callback
+            if selected_two["selected_rows"]:
+                callback(file_fetcher_two, selected_two["selected_rows"][0]["plant_name"])
+        
+   
+        col1.download_button(
+            label="Download All Data",
+            data=convert_df(combined_data_two),
+            file_name=f"{combined_data_two.iloc[0, 0]}_combined_data.csv",
+            mime="text/csv",
+            key="all_data_download_date_two"
+        )
+        col2.download_button(
+            label="Download Filtered Data (Co-ordinates + Selected Field)",
+            data=convert_df(filtered_df_two),
+            file_name=f"{combined_data_two.iloc[0, 0]}_filtered_data.csv",
+            mime="text/csv",
+            key="filtered_data_download_date_two"
+        )
+
+    if date_two is not None and date_to_visualize == date_two:   
+        get_visuals(file_fetcher_two, filtered_df_two, exact_column_name, pn_exists)
+    else:
+        get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
 
 
 def callback(file_fetcher, crop_name):
@@ -891,7 +999,73 @@ def get_visuals(file_fetcher, filtered_df, column_name, pn_exists):
 
     plotly_col.plotly_chart(fig, use_container_width=True)
 
+def handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout):
+    
+    plant_detection_csv_path = get_plant_detection_csv_path(
+        _session,
+        seasons[selected_season],
+        selected_sensor,
+        selected_crop,
+        dates,
+        selected_date,
+        alt_layout,
+    )
+    if plant_detection_csv_path != "":
+        # Download necessary files (just fieldbook and plantdetection csv for now)
+        print(plant_detection_csv_path)
+        with filter_sec:
+            with st.spinner(
+                "This might take some time. Please wait..."
+            ):
+                field_book_name = download_fieldbook(
+                    _session, seasons[selected_season]
+                )
+                if field_book_name == "":
+                    st.write(
+                        "No fieldbook for this season was found"
+                    )
+                else:
+                    local_file_name = (
+                        plant_detection_csv_path.split("/")[
+                            -1
+                        ].split(".")[0]
+                    )
+                    local_file_name = f"{local_file_name[: len(local_file_name) - 4]}ion.csv"
+                    local_file_name = (
+                        f"{dates[selected_date]}_fluorescence_aggregation"
+                        if selected_sensor == "ps2Top"
+                        else local_file_name
+                    )
 
+                    download_plant_detection_csv(
+                        _session,
+                        local_file_name,
+                        plant_detection_csv_path,
+                    )
+                    plant_detect_df = (
+                        pd.read_csv(f"detect_out/{local_file_name}")
+                        if selected_sensor != "ps2Top"
+                        else pd.read_csv(
+                            f"fluorescence_aggregation_out/"
+                            f"{dates[selected_date]}_fluorescence_aggregation.csv"
+                        )
+                    )
+                    # Data Analysis and vis section starts
+                    file_fetcher, result = data_analysis(
+                                                _session,
+                                                seasons[selected_season],
+                                                plant_detect_df,
+                                                field_book_name,
+                                                selected_sensor,
+                                                selected_crop,
+                                                dates[selected_date],
+                                                alt_layout,
+                                            )
+                    return file_fetcher, result
+
+
+
+                    
 def main():
     # Setting up the app for aesthetic changes
     st.set_page_config(
@@ -973,7 +1147,10 @@ def main():
                         selected_date_two = st.sidebar.select_slider(
                             "Select a second date date: ", options=display_dates
                         )
+                    else:
+                        selected_date_two = None
                     filter_sec.header(":blue[Data and its Visualization]")
+                    #TRY FOR FIRST DATE
                     try:
                         _session.data_objects.get(
                             f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
@@ -990,74 +1167,56 @@ def main():
                             dates[selected_date],
                             selected_crop,
                         )
-
-                        create_filter(file_fetcher, comb_df, selected_sensor)
-                        os.remove(
-                            f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
-                        )
                     except Exception as e:
                         print(e)
-                        plant_detection_csv_path = get_plant_detection_csv_path(
-                            _session,
-                            seasons[selected_season],
-                            selected_sensor,
-                            selected_crop,
-                            dates,
-                            selected_date,
-                            alt_layout,
-                        )
-                        if plant_detection_csv_path != "":
-                            # Download necessary files (just fieldbook and plantdetection csv for now)
-                            print(plant_detection_csv_path)
-                            with filter_sec:
-                                with st.spinner(
-                                    "This might take some time. Please wait..."
-                                ):
-                                    field_book_name = download_fieldbook(
-                                        _session, seasons[selected_season]
-                                    )
-                                    if field_book_name == "":
-                                        st.write(
-                                            "No fieldbook for this season was found"
-                                        )
-                                    else:
-                                        local_file_name = (
-                                            plant_detection_csv_path.split("/")[
-                                                -1
-                                            ].split(".")[0]
-                                        )
-                                        local_file_name = f"{local_file_name[: len(local_file_name) - 4]}ion.csv"
-                                        local_file_name = (
-                                            f"{dates[selected_date]}_fluorescence_aggregation"
-                                            if selected_sensor == "ps2Top"
-                                            else local_file_name
-                                        )
+                        file_fetcher, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
 
-                                        download_plant_detection_csv(
-                                            _session,
-                                            local_file_name,
-                                            plant_detection_csv_path,
-                                        )
-                                        plant_detect_df = (
-                                            pd.read_csv(f"detect_out/{local_file_name}")
-                                            if selected_sensor != "ps2Top"
-                                            else pd.read_csv(
-                                                f"fluorescence_aggregation_out/"
-                                                f"{dates[selected_date]}_fluorescence_aggregation.csv"
-                                            )
-                                        )
-                                        # Data Analysis and vis section starts
-                                        data_analysis(
-                                            _session,
-                                            seasons[selected_season],
-                                            plant_detect_df,
-                                            field_book_name,
-                                            selected_sensor,
-                                            selected_crop,
-                                            dates[selected_date],
-                                            alt_layout,
-                                        )
+                    if not date_two:
+                        if comb_df is not None:
+                            create_filter(file_fetcher, comb_df, selected_sensor, None, None, selected_date, None)
+                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
+                            os.remove(
+                                f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                            )
+                    elif date_two and selected_date==selected_date_two:
+                        if comb_df is not None:
+                            create_filter(file_fetcher, comb_df, selected_sensor, None, None, selected_date, None)
+                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
+                            os.remove(
+                                f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                            )
+                    else:
+                
+                        try:
+                            _session.data_objects.get(
+                                f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
+                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv",
+                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv",
+                                force=True,
+                            )
+                            comb_df = pd.read_csv(
+                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"
+                            )
+                            file_fetcher_two = create_file_fetcher(
+                                _session,
+                                seasons[selected_season],
+                                dates[selected_date_two],
+                                selected_crop,
+                            )
+                        except Exception as e:
+                            print(e)
+                            file_fetcher_two, comb_df_two = handle_except(_session, seasons, selected_season, dates, selected_date_two, selected_sensor, selected_crop, alt_layout)
 
-
+                        if comb_df is not None:
+                            create_filter(file_fetcher, comb_df, selected_sensor, file_fetcher_two, comb_df_two, selected_date, selected_date_two)
+                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
+                            os.remove(
+                                f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                            )
+                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"):
+                            os.remove(
+                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"
+                            )
+                   
 if __name__ == "__main__":
     main()
