@@ -788,7 +788,7 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["genotype"].unique())
 
-        selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique(), key="gf_date_one")
+        selected_genotype = col2.selectbox("Genotype", genotype_filter, key="gf_date_one")
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
@@ -796,15 +796,20 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
         genotype_filter = ["All"]
         genotype_filter.append(filtered_df["range"].unique())
 
-        selected_range = col2.selectbox("Range", filtered_df["range"].unique(), key="rf_date_one")
+        selected_range = st.sidebar.select_slider(
+                        "Select a range: ", options=filtered_df["range"].unique()
+                    )
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
 
     if selected_column_name == "plot":
-        genotype_filter = ["All"]
-        genotype_filter.append(filtered_df["plot"].unique())
-
-        selected_plot = col2.selectbox("Plot", filtered_df["plot"].unique(), key="pf_date_one")
+        plot_filter = ["All"]
+        plot_filter.append(filtered_df["plot"].unique())
+        
+        selected_plot = st.sidebar.select_slider(
+                        "Select a plot: ", options=plot_filter
+                    )
+        
         if selected_column_name != "All":
             filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
 
