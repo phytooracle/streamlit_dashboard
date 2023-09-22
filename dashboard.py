@@ -695,7 +695,7 @@ def combine_all_csv(path, sensor, crop, date):
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
-def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combined_data_two, date, date_two):
+def create_filter(file_fetcher, combined_data, sensor):
     """Creates a dynamic fiter
 
     Args:
@@ -707,31 +707,23 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
     extra = {
         "alwaysShowVerticalScroll": True,
         "alwaysShowHorizontalScroll": True,
-        "autoHeight": True,
+        # "autoHeight": True,
     }
-
+    
     for column_name in combined_data.columns:
         if column_name == "plant_name":
             pn_exists = True
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
-    selected_column_name = filter_sec.selectbox(
-        "Choose an Attribute", sorted(filter_options)
-    )
 
-    if combined_data_two is not None:
-        date_options = [date, date_two]
+    if 'column_select' not in st.session_state:
+        selected_column_name = filter_sec.selectbox(
+            "Choose an Attribute", sorted(filter_options)
+        )
 
-        date_to_visualize = filter_sec.selectbox(
-        "Choose which date to visualize", date_options
-    )
-    else:
-        date_to_visualize = None
-
-
-    col1.header(f"All Data: {date}")
-
+    col1.header("All Data")
     all_gb = GridOptionsBuilder.from_dataframe(combined_data)
+
     # configure column definitions
     for column_name in combined_data.columns:
         all_gb.configure_column(column_name, filter=True)
@@ -743,33 +735,8 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
             gridOptions=gridOptions,
             theme="balham",
             height=450,
-            key="all_data_date_one"
+            
         )
-
-    col1.download_button(
-        label="Download All Data",
-        data=convert_df(combined_data),
-        file_name=f"{combined_data.iloc[0, 0]}_combined_data.csv",
-        mime="text/csv",
-        key="all_data_download_date_one"
-    )
-
-    if combined_data_two is not None:
-        col1.header(f"All Data: {date_two}")
-        all_gb_two = GridOptionsBuilder.from_dataframe(combined_data_two)
-        for column_name in combined_data_two.columns:
-            all_gb_two.configure_column(column_name, filter=True)
-        all_gb_two.configure_grid_options(**extra)
-        gridOptions = all_gb_two.build()
-        with col1:
-            selected = AgGrid(
-                combined_data,
-                gridOptions=gridOptions,
-                theme="balham",
-                height=450,
-                key="all_data_date_two"
-            )
-
 
     selected_columns = []
     exact_column_name = selected_column_name
@@ -785,28 +752,23 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
     filtered_df = combined_data.loc[:, combined_data.columns.isin(selected_columns)]
 
     if selected_column_name == "genotype":
-        
         selected_genotype = col2.selectbox("Genotype", filtered_df["genotype"].unique(), key="gf_date_one")
-        
         filtered_df = filtered_df[filtered_df["genotype"].isin([selected_genotype])]
 
     if selected_column_name == "range":
-        
         selected_range = col2.select_slider(
                         "Select a range: ", options=filtered_df["range"].unique()
                     )
-       
         filtered_df = filtered_df[filtered_df["range"].isin([selected_range])]
 
     if selected_column_name == "plot":
-        
         selected_plot = col2.select_slider(
                         "Select a plot: ", options=filtered_df["plot"].unique()
                     )
-        
         filtered_df = filtered_df[filtered_df["plot"].isin([selected_plot])]
 
-    col2.header(f"Filtered Data: {date}")
+
+    col2.header("Filtered Data")
     filtered_gb = GridOptionsBuilder.from_dataframe(filtered_df)
     # configure column definitions
     for column_name in filtered_df.columns:
@@ -822,93 +784,30 @@ def create_filter(file_fetcher, combined_data, sensor, file_fetcher_two, combine
             gridOptions=gridOptions,
             theme="balham",
             height=450,
-            key="filtered_data_date_one"
+           
         )  # get which row user selects of the
 
         # vizualization on point clouds is possible and a plant was selected use callback
         if selected["selected_rows"]:
             callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
 
-    
+    col1.download_button(
+        label="Download All Data",
+        data=convert_df(combined_data),
+        file_name=f"{combined_data.iloc[0, 0]}_combined_data.csv",
+        mime="text/csv",
+        
+    )
     col2.download_button(
         label="Download Filtered Data (Co-ordinates + Selected Field)",
         data=convert_df(filtered_df),
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
-        key="filtered_data_download_date_one"
+        
     )
 
-    if combined_data_two is not None:
-
-        filtered_df_two = combined_data_two.loc[:, combined_data_two.columns.isin(selected_columns)]
-
-        if selected_column_name == "genotype":
-            genotype_filter = ["All"]
-            genotype_filter.append(filtered_df_two["genotype"].unique())
-
-            selected_genotype = col2.selectbox("Genotype", filtered_df_two["genotype"].unique(), key="gf_date_two")
-            if selected_column_name != "All":
-                filtered_df_two = filtered_df_two[filtered_df_two["genotype"].isin([selected_genotype])]
-
-        if selected_column_name == "range":
-            genotype_filter = ["All"]
-            genotype_filter.append(filtered_df_two["range"].unique())
-
-            selected_range = col2.selectbox("Range", filtered_df_two["range"].unique(), key="rf_date_two")
-            if selected_column_name != "All":
-                filtered_df_two = filtered_df_two[filtered_df_two["range"].isin([selected_range])]
-
-        if selected_column_name == "plot":
-            genotype_filter = ["All"]
-            genotype_filter.append(filtered_df_two["plot"].unique())
-
-            selected_plot = col2.selectbox("Plot", filtered_df_two["plot"].unique(), key="pf_date_two")
-            if selected_column_name != "All":
-                filtered_df_two = filtered_df_two[filtered_df_two["plot"].isin([selected_plot])]
-
-        col2.header(f"Filtered Data: {date_two}")
-        filtered_gb_two = GridOptionsBuilder.from_dataframe(filtered_df_two)
-            # configure column definitions
-        for column_name in filtered_df_two.columns:
-            filtered_gb_two.configure_column(column_name, filter=True)
-        filtered_gb_two.configure_grid_options(**extra)
-        filtered_gb_two.configure_selection(selection_mode="single", use_checkbox=True)
-        gridOptions = filtered_gb_two.build()
-
-        # set aggrid table to column two and watch for events
-        with col2:
-            selected_two = AgGrid(
-                filtered_df_two,
-                gridOptions=gridOptions,
-                theme="balham",
-                height=450,
-                key="filtered_data_date_two"
-            )  # get which row user selects of the
-
-            # vizualization on point clouds is possible and a plant was selected use callback
-            if selected_two["selected_rows"]:
-                callback(file_fetcher_two, selected_two["selected_rows"][0]["plant_name"])
-        
-   
-        col1.download_button(
-            label="Download All Data",
-            data=convert_df(combined_data_two),
-            file_name=f"{combined_data_two.iloc[0, 0]}_combined_data.csv",
-            mime="text/csv",
-            key="all_data_download_date_two"
-        )
-        col2.download_button(
-            label="Download Filtered Data (Co-ordinates + Selected Field)",
-            data=convert_df(filtered_df_two),
-            file_name=f"{combined_data_two.iloc[0, 0]}_filtered_data.csv",
-            mime="text/csv",
-            key="filtered_data_download_date_two"
-        )
-
-    if date_two is not None and date_to_visualize == date_two:   
-        get_visuals(file_fetcher_two, filtered_df_two, exact_column_name, pn_exists)
-    else:
-        get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
+    
+    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
 
 
 def callback(file_fetcher, crop_name):
@@ -1085,6 +984,7 @@ def main():
     st.sidebar.title(":green[Phytooracle] :seedling:")
     st.sidebar.subheader("Scan selection")
     st.title("Dashboard")
+    
     # To establish an irods _session
     try:
         _session = iRODSSession(
@@ -1135,18 +1035,25 @@ def main():
                 vis_container = st.container()
                 plotly_col, dist_col = vis_container.columns(2)
                 col1, col2 = st.columns(2)
+                extra_selected_dates = []
                 if dates:
                     display_dates = sorted(dates.keys())
                     selected_date = st.sidebar.select_slider(
                         "Select a date: ", options=display_dates
                     )
-                    date_two = st.sidebar.checkbox("Select another date")
-                    if date_two:
-                        selected_date_two = st.sidebar.select_slider(
-                            "Select a second date date: ", options=display_dates
-                        )
-                    else:
-                        selected_date_two = None
+
+                    num_opts = list(np.arange(len(dates)))
+                    extra_date = st.sidebar.checkbox("Select additional dates")
+                    selected_extra_dates = []
+                    if extra_date:
+                        num_extra_dates=st.sidebar.selectbox("Number of Additional dates", num_opts, key="num_opts")
+                        for i in range(num_extra_dates):
+                            print(i)
+                            extra_selected_date = st.sidebar.select_slider(
+                                "Select another date: ", options=display_dates, key=f"extra_date_{i}"
+                            )
+                    
+
                     filter_sec.header(":blue[Data and its Visualization]")
                     #TRY FOR FIRST DATE
                     try:
@@ -1169,52 +1076,58 @@ def main():
                         print(e)
                         file_fetcher, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
 
-                    if not date_two:
+                   
+                    if not extra_date:
+        
                         if comb_df is not None:
-                            create_filter(file_fetcher, comb_df, selected_sensor, None, None, selected_date, None)
-                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
-                            os.remove(
-                                f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
-                            )
-                    elif date_two and selected_date==selected_date_two:
-                        if comb_df is not None:
-                            create_filter(file_fetcher, comb_df, selected_sensor, None, None, selected_date, None)
+                            create_filter(file_fetcher, comb_df, selected_sensor)
                         if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
                             os.remove(
                                 f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                             )
                     else:
-                
-                        try:
-                            _session.data_objects.get(
-                                f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
-                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv",
-                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv",
-                                force=True,
-                            )
-                            comb_df_two = pd.read_csv(
-                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"
-                            )
-                            file_fetcher_two = create_file_fetcher(
-                                _session,
-                                seasons[selected_season],
-                                dates[selected_date_two],
-                                selected_crop,
-                            )
-                        except Exception as e:
-                            print(e)
-                            file_fetcher_two, comb_df_two = handle_except(_session, seasons, selected_season, dates, selected_date_two, selected_sensor, selected_crop, alt_layout)
 
-                        if comb_df is not None:
-                            create_filter(file_fetcher, comb_df, selected_sensor, file_fetcher_two, comb_df_two, selected_date, selected_date_two)
+                        new_df = pd.DataFrame()
+                        new_df = pd.concat([new_df, comb_df])
+                        for i in range(num_extra_dates):
+
+                            esd = st.session_state[f"extra_date_{i}"]
+                            print(esd)
+                            print("\n\n")
+                            if esd != selected_date:
+                                try:
+                                    _session.data_objects.get(
+                                        f"/iplant/home/shared/phytooracle/dashboard_cache/{selected_sensor}/combined_data/"
+                                        f"{seasons[selected_season]}_{dates[esd]}_all.csv",
+                                        f"{seasons[selected_season]}_{dates[esd]}_all.csv",
+                                        force=True,
+                                    )
+                                    comb_df_add = pd.read_csv(
+                                        f"{seasons[selected_season]}_{dates[esd]}_all.csv"
+                                    )
+                                    file_fetcher_two = create_file_fetcher(
+                                        _session,
+                                        seasons[selected_season],
+                                        dates[esd],
+                                        selected_crop,
+                                    )
+                                except Exception as e:
+                                    print(e)
+                                    file_fetcher_two, comb_df_add = handle_except(_session, seasons, selected_season, dates, esd, selected_sensor, selected_crop, alt_layout)
+
+                                new_df = pd.concat([new_df, comb_df_add])
+                                if os.path.exists(f"{seasons[selected_season]}_{dates[esd]}_all.csv"):
+                                    os.remove(
+                                        f"{seasons[selected_season]}_{dates[esd]}_all.csv"
+                                    )
+                            
+                        if new_df is not None:
+                                create_filter(file_fetcher, new_df, selected_sensor)
+
                         if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
-                            os.remove(
-                                f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
-                            )
-                        if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"):
-                            os.remove(
-                                f"{seasons[selected_season]}_{dates[selected_date_two]}_all.csv"
-                            )
+                                os.remove(
+                                    f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
+                                )
                    
 if __name__ == "__main__":
     main()
