@@ -695,7 +695,7 @@ def combine_all_csv(path, sensor, crop, date):
         return pd.read_csv(f"volumes_entropy/combined_csv_{sensor}-{crop}_{date}.csv")
 
 
-def create_filter(file_fetcher, combined_data, sensor):
+def create_filter(file_fetchers, combined_data, sensor):
     """Creates a dynamic fiter
 
     Args:
@@ -789,7 +789,7 @@ def create_filter(file_fetcher, combined_data, sensor):
 
         # vizualization on point clouds is possible and a plant was selected use callback
         if selected["selected_rows"]:
-            callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
+            callback(file_fetchers, selected["selected_rows"][0]["plant_name"], selected["selected_rows"][0]["date"])
 
     col1.download_button(
         label="Download All Data",
@@ -807,14 +807,16 @@ def create_filter(file_fetcher, combined_data, sensor):
     )
 
     
-    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
+    get_visuals(file_fetchers, filtered_df, exact_column_name, pn_exists)
 
 
-def callback(file_fetcher, crop_name):
+def callback(file_fetchers, crop_name, date):
     """
     Callback function to download 3D data of a plant, read a point cloud file, apply an offset to the x and y coordinates,
     create a DataFrame from the point cloud data, and generate a 3D scatter plot of the point cloud using Plotly.
     """
+    date_key = date.split("__")
+    file_fetcher = file_fetchers.get(date_key[0])
     # make change to accomodate filters bc table is not file
     plant_3d_data = file_fetcher.download_plant_by_index(crop_name)
 
@@ -849,7 +851,7 @@ def callback(file_fetcher, crop_name):
     dist_col.plotly_chart(fig, use_container_width=True)
 
 
-def get_visuals(file_fetcher, filtered_df, column_name, pn_exists):
+def get_visuals(filtered_df, column_name, pn_exists):
     """Make the map plot, as well as the histogram based on the selected filed
 
     Args:
@@ -1031,6 +1033,7 @@ def main():
                 )
                 # for organizing stuff on the screen
                 global col1, col2, filter_sec, vis_container, plotly_col, dist_col
+                file_fetchers ={}
                 filter_sec = st.container()
                 vis_container = st.container()
                 plotly_col, dist_col = vis_container.columns(2)
@@ -1066,21 +1069,24 @@ def main():
                         comb_df = pd.read_csv(
                             f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
                         )
-                        file_fetcher = create_file_fetcher(
+                        ff = create_file_fetcher(
                             _session,
                             seasons[selected_season],
                             dates[selected_date],
                             selected_crop,
                         )
+
+                        file_fetchers[selected_date]=ff
                     except Exception as e:
                         print(e)
-                        file_fetcher, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
+                        ff, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
 
+                        file_fetchers[selected_date]=ff
                    
                     if not extra_date:
         
                         if comb_df is not None:
-                            create_filter(file_fetcher, comb_df, selected_sensor)
+                            create_filter(file_fetchers, comb_df, selected_sensor)
                         if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
                             os.remove(
                                 f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"
@@ -1105,15 +1111,17 @@ def main():
                                     comb_df_add = pd.read_csv(
                                         f"{seasons[selected_season]}_{dates[esd]}_all.csv"
                                     )
-                                    file_fetcher_two = create_file_fetcher(
+                                    ff_additional = create_file_fetcher(
                                         _session,
                                         seasons[selected_season],
                                         dates[esd],
                                         selected_crop,
                                     )
+
+                                    file_fetchers[esd]=ff_additional
                                 except Exception as e:
                                     print(e)
-                                    file_fetcher_two, comb_df_add = handle_except(_session, seasons, selected_season, dates, esd, selected_sensor, selected_crop, alt_layout)
+                                    ff_additional, comb_df_add = handle_except(_session, seasons, selected_season, dates, esd, selected_sensor, selected_crop, alt_layout)
 
                                 new_df = pd.concat([new_df, comb_df_add])
                                 if os.path.exists(f"{seasons[selected_season]}_{dates[esd]}_all.csv"):
@@ -1122,7 +1130,7 @@ def main():
                                     )
                             
                         if new_df is not None:
-                                create_filter(file_fetcher, new_df, selected_sensor)
+                                create_filter(file_fetchers, new_df, selected_sensor)
 
                         if os.path.exists(f"{seasons[selected_season]}_{dates[selected_date]}_all.csv"):
                                 os.remove(
