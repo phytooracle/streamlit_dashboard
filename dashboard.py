@@ -1084,14 +1084,14 @@ def main():
                             selected_crop,
                         )
 
-                        key_string = comb_df.at(0,"date")
+                        key_string = comb_df.at[0,"date"]
                         key = key_string.split("__")[0]
                         file_fetchers[key]=ff
                     except Exception as e:
                         print(e)
                         ff, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
                         
-                        key_string = comb_df.at(0,"date")
+                        key_string = comb_df.at[0,"date"]
                         key = key_string.split("__")[0]
                         file_fetchers[key]=ff
                    
@@ -1130,7 +1130,7 @@ def main():
                                         selected_crop,
                                     )
                                     
-                                    key_string = comb_df_add.at(0,"date")
+                                    key_string = comb_df_add.at[0,"date"]
                                     key = key_string.split("__")[0]
                                     file_fetchers[key]=ff_additional
                                 except Exception as e:
