@@ -718,7 +718,7 @@ def create_filter(file_fetchers, combined_data, sensor):
 
     if 'column_select' not in st.session_state:
         selected_column_name = filter_sec.selectbox(
-            "Choose an Attribute", sorted(filter_options)
+            "Choose an Attribute", sorted(filter_options), key="column_select"
         )
 
     col1.header("All Data")
