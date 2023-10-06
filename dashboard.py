@@ -710,16 +710,20 @@ def create_filter(file_fetchers, combined_data, sensor):
         # "autoHeight": True,
     }
     
+    print("\n\n")
+    print(file_fetchers)
+    print("\n\n")
+
     for column_name in combined_data.columns:
         if column_name == "plant_name":
             pn_exists = True
         if not re.search(f"lon|lat|max|min|date", column_name, re.IGNORECASE):
             filter_options.append(column_name)
 
-    if 'column_select' not in st.session_state:
-        selected_column_name = filter_sec.selectbox(
-            "Choose an Attribute", sorted(filter_options), key="column_select"
-        )
+    # if 'column_select' not in st.session_state:
+    selected_column_name = filter_sec.selectbox(
+        "Choose an Attribute", sorted(filter_options), key="column_select"
+    )
 
     col1.header("All Data")
     all_gb = GridOptionsBuilder.from_dataframe(combined_data)
@@ -807,7 +811,7 @@ def create_filter(file_fetchers, combined_data, sensor):
     )
 
     
-    get_visuals(file_fetchers, filtered_df, exact_column_name, pn_exists)
+    get_visuals(filtered_df, exact_column_name, pn_exists)
 
 
 def callback(file_fetchers, crop_name, date):
@@ -816,6 +820,10 @@ def callback(file_fetchers, crop_name, date):
     create a DataFrame from the point cloud data, and generate a 3D scatter plot of the point cloud using Plotly.
     """
     date_key = date.split("__")
+    print("\n\n")
+    print(date_key)
+    print("\n\n")
+
     file_fetcher = file_fetchers.get(date_key[0])
     # make change to accomodate filters bc table is not file
     plant_3d_data = file_fetcher.download_plant_by_index(crop_name)
@@ -1076,12 +1084,16 @@ def main():
                             selected_crop,
                         )
 
-                        file_fetchers[selected_date]=ff
+                        key_string = comb_df.at(0,"date")
+                        key = key_string.split("__")[0]
+                        file_fetchers[key]=ff
                     except Exception as e:
                         print(e)
                         ff, comb_df = handle_except(_session, seasons, selected_season, dates, selected_date, selected_sensor, selected_crop, alt_layout)
-
-                        file_fetchers[selected_date]=ff
+                        
+                        key_string = comb_df.at(0,"date")
+                        key = key_string.split("__")[0]
+                        file_fetchers[key]=ff
                    
                     if not extra_date:
         
@@ -1117,8 +1129,10 @@ def main():
                                         dates[esd],
                                         selected_crop,
                                     )
-
-                                    file_fetchers[esd]=ff_additional
+                                    
+                                    key_string = comb_df_add.at(0,"date")
+                                    key = key_string.split("__")[0]
+                                    file_fetchers[key]=ff_additional
                                 except Exception as e:
                                     print(e)
                                     ff_additional, comb_df_add = handle_except(_session, seasons, selected_season, dates, esd, selected_sensor, selected_crop, alt_layout)
