@@ -702,7 +702,7 @@ def download_extra_3D_data(_session, season, season_no, sensor, crop, date):
 
 
 @st.cache_data
-def download_plant_clustering_csv(_session, season, season_no):
+def download_plant_clustering_csv(_session, season, sensor, season_no):
     """
     Download Plant clustering CSV (or agglomerative one for flirIrCamera)
     Make sure that the the flirIr name is being matched correctly
