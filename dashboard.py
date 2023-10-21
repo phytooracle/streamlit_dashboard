@@ -1018,6 +1018,14 @@ def main():
             season_display_names = sorted(
                 seasons.keys(), key=lambda x: int(x.split(" ")[1])
             )
+            ## THESE NEXT TWO LINES STOP SEASON 10 AND 11 FROM BEING DISPLAYED FOR NOW
+            season_display_names = [
+                item
+                for item in season_display_names
+                if "Season 9" not in str(item)
+                and "Season 10" not in str(item)
+                and "Season 11" not in str(item)
+            ]
             selected_season = st.sidebar.selectbox(
                 "Select a season: ", season_display_names
             )
