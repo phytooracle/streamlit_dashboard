@@ -248,12 +248,17 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
 def get_and_count_files_in_folder(_session, season, sensor, crop, level):
     count = 0
     if level != "level_0":
-        file_collection = _session.collections.get(
-            f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}/{crop}"
-        )
-        for folder in file_collection.subcollections:
-            if not re.search("dep*", folder.name) and re.search("\d+\s*", folder.name):
-                count += 1
+        try:
+            file_collection = _session.collections.get(
+                f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}/{crop}"
+            )
+            for folder in file_collection.subcollections:
+                if not re.search("dep*", folder.name) and re.search(
+                    "\d+\s*", folder.name
+                ):
+                    count += 1
+        except:
+            return 0
     else:
         file_collection = _session.collections.get(
             f"/iplant/home/shared/phytooracle/{season}/{level}/{sensor}"
@@ -719,23 +724,7 @@ def download_plant_clustering_csv(_session, season, sensor, season_no):
             f"season_{season_no}_plant_detection_combined"
         )
         for item in detection_combined.data_objects:
-            # CHECK THESE IF STATEMENTS
-            # if "agglomerative" in item.name and re.search(
-            #     "flir", sensor, re.IGNORECASE
-            # ):
-            #     _session.data_objects.get(
-            #         f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
-            #         f"season_{season_no}_plant_detection_combined/"
-            #         f"{item.name}",
-            #         f"plant_clustering/season_{season_no}_{sensor == 'flirIrCamera'}_clustering.csv",
-            #         force=True,
-            #     )
-            #     break
-            # # elif "agglomerative" not in item.name and not re.search(
-            #     "flir", "sensor", re.IGNORCASE
-            # ):
-            #     break
-            if "agglomerative" in item.name:
+            if "agglomerative" in item.name or "updated" in item.name:
                 if re.search("flir", sensor, re.IGNORECASE):
                     _session.data_objects.get(
                         f"/iplant/home/shared/phytooracle/{season}/level_2/stereoTop/"
