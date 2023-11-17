@@ -78,10 +78,10 @@ def get_sensors(_session, season):
         return sensors
     else:
         for sensor in sensor_collection.subcollections:
-            if (
-                not re.search("deprecated", sensor.name)
-                and not re.search("environmentlogger", sensor.name, re.IGNORECASE)
-                and not re.search("drone", sensor.name, re.IGNORECASE)
+            if not re.search("deprecated", sensor.name) and (
+                re.search("ps", sensor.name, re.IGNORECASE)
+                or re.search("flir", sensor.name, re.IGNORECASE)
+                or re.search("stereo", sensor.name, re.IGNORECASE)
             ):
                 sensors.append(sensor.name)
         return sensors
