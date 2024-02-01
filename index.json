@@ -1,7 +1,7 @@
 {
   "10": {
     "metadata": {
-      "fieldbook": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/season10_lettuce_field_book_types.xlsx",
+      "fieldbook": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/lettuce_field_book.csv",
       "crops": [
         "lettuce"
       ],
@@ -10,7 +10,21 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "lettuce": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_2/stereoTop/season10_plant_detection",
+          "flirIrCamera": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_2/flirIrCamera/season10_plant_temps",
+          "ps2Top": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_2/ps2Top/season10_fluorescence_outs"
+        }
+      },
+      "volume-entropy": {
+        "lettuce": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_3/scanner3DTop"
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_3/stereoTop/stereoTop_full_season_clustering.csv",
+        "flirIrCamera": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_3/flirIrCamera/season10_plant_clustering/s10_flir_rgb_clustering_v4.csv"
+      }
     },
     "paths": {
       "0": {
@@ -47,7 +61,7 @@
       "4": {
         "lettuce": {
           "stereoTop": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_4/stereoTop/season_10_full_season_clustered_flagged.csv",
-          "scanner3DTop": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_4/stereoTop"
+          "scanner3DTop": "/iplant/home/shared/phytooracle/season_10_lettuce_yr_2020/level_4/scanner3DTop"
         }
       }
     }
@@ -63,7 +77,21 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "sorghum": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_11_sorghum_yr_2020/level_2/stereoTop/season11_plant_detection",
+          "flirIrCamera": "/iplant/home/shared/phytooracle/season_11_sorghum_yr_2020/level_2/flirIrCamera/season11_plant_temps",
+          "ps2Top": "/iplant/home/shared/phytooracle/season_11_sorghum_yr_2020/level_2/ps2Top/season11_fluorescence_outs"
+        }
+      },
+      "volume-entropy": {
+        "sorghum": ""
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_11_sorghum_yr_2020/level_3/stereoTop/season_11_clustering.csv",
+        "flirIrCamera": "/iplant/home/shared/phytooracle/season_11_sorghum_yr_2020/level_3/flirIrCamera/s11_clustered_flir_identifications.csv"
+      }
     },
     "paths": {
       "0": {
@@ -113,7 +141,22 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "sorghum": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_12_sorghum_soybean_sunflower_tepary_yr_2021/level_1/stereoTop/sorghum",
+          "flirIrCamera": "/iplant/home/shared/phytooracle/season_12_sorghum_soybean_sunflower_tepary_yr_2021/level_1/flirIrCamera/sorghum"
+        },
+        "sunflower": {
+          "ps2Top": "/iplant/home/shared/phytooracle/season_12_sorghum_soybean_sunflower_tepary_yr_2021/level_1/ps2Top/sunflower"
+        }
+      },
+      "volume-entropy": {
+        "sorghum": ""
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_12_sorghum_soybean_sunflower_tepary_yr_2021/level_3/stereoTop/season_12_clustering.csv"
+      }
     },
     "paths": {
       "0": {
@@ -171,7 +214,20 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "lettuce": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_13_lettuce_yr_2022/level_1/stereoTop/lettuce",
+          "flirIrCamera": "",
+          "ps2Top": "/iplant/home/shared/phytooracle/season_13_lettuce_yr_2022/level_1/ps2Top/lettuce"
+        }
+      },
+      "volume-entropy": {
+        "lettuce": "/iplant/home/shared/phytooracle/season_13_lettuce_yr_2022/level_2/scanner3DTop/lettuce"
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_13_lettuce_yr_2022/level_2/stereoTop/season_13_plant_detection_combined/season_13_clustering_updated.csv"
+      }
     },
     "paths": {
       "0": {
@@ -200,7 +256,7 @@
   },
   "14": {
     "metadata": {
-      "fieldbook": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_20d22_reprocessing/North_gantry_fieldbook_2022_replants.csv",
+      "fieldbook": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022_reprocessing/North_gantry_fieldbook_2022_replants.csv",
       "crops": [
         "sorghum"
       ],
@@ -209,7 +265,21 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "sorghum": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022/level_1/stereoTop/sorghum",
+          "flirIrCamera": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022/level_1/flirIrCamera/sorghum",
+          "ps2Top": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022/level_1/ps2Top/sorghum"
+        }
+      },
+      "volume-entropy": {
+        "sorghum": ""
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022_reprocessing/level_2/stereoTop/season_14_clustering.csv",
+        "flirIrCamera": "/iplant/home/shared/phytooracle/season_14_sorghum_yr_2022_reprocessing/level_2/flirIrCamera/season_14_clustering_flir.csv"
+      }
     },
     "paths": {
       "0": {
@@ -248,7 +318,21 @@
         "scanner3DTop",
         "flirIrCamera",
         "ps2Top"
-      ]
+      ],
+      "plant-detect": {
+        "lettuce": {
+          "stereoTop": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_1/stereoTop/lettuce",
+          "flirIrCamera": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_1/flirIrCamera/lettuce",
+          "ps2Top": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_1/ps2Top/lettuce"
+        }
+      },
+      "volume-entropy": {
+        "lettuce": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_2/scanner3DTop/lettuce"
+      },
+      "plant-clustering": {
+        "stereoTop": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_2/stereoTop/season_15_plant_detection_combined/season_15_clustering.csv",
+        "flirIrCamera": "/iplant/home/shared/phytooracle/season_15_lettuce_yr_2022/level_2/stereoTop/season_15_plant_detection_combined/season_15_agglomerative_plant_clustering.csv"
+      }
     },
     "paths": {
       "0": {
