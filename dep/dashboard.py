@@ -7,6 +7,7 @@ Some Helpful Hints:
 If something is not working fine, please take a look at the paths and
 the regexs (especially them! ) first. If they look fine, don't change them!
 """
+
 from irods.session import iRODSSession
 from datetime import datetime, timedelta
 import pandas as pd
@@ -181,7 +182,11 @@ def display_processing_info(_session, seasons, selected_season, sensors, crop):
                         }
                     )
                     sensor_df = pd.concat([sensor_df, new_row], ignore_index=True)
-                    percentage_processed = (level_X_file_ct / level_0_file_ct) * 100
+                    if level_0_file_ct != 0:
+                        percentage_processed = (level_X_file_ct / level_0_file_ct) * 100
+
+                    else:
+                        percentage_processed = 0
                 else:
                     # A single common file created for RGB higher processing, so if there is a folder
                     # then everything has been processed

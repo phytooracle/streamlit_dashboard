@@ -16,12 +16,12 @@ class Fetcher:
         self.irods_dict = {
             "server_path": "/iplant/home/shared/phytooracle/",
             "season": {
-                "Season 10": "season_10_lettuce_yr_2020",
-                "Season 11": "season_11_sorghum_yr_2020",
-                "Season 12": "season_12_sorghum_soybean_sunflower_tepary_yr_2021",
-                "Season 13": "season_13_lettuce_yr_2022",
-                "Season 14": "season_14_sorghum_yr_2022",
-                "Season 15": "season_15_lettuce_yr_2022",
+                "10": "season_10_lettuce_yr_2020",
+                "11": "season_11_sorghum_yr_2020",
+                "12": "season_12_sorghum_soybean_sunflower_tepary_yr_2021",
+                "13": "season_13_lettuce_yr_2022",
+                "14": "season_14_sorghum_yr_2022",
+                "15": "season_15_lettuce_yr_2022",
             },
         }
 
@@ -80,13 +80,13 @@ class Fetcher:
         os.makedirs(folder, exist_ok=True)
         # go through the dates
 
-        # season_path = self.irods_dict['season'][self.season]
+        season_path = self.irods_dict["season"][self.season]
 
         # construct a url for the date
-        if self.season == "season_10_lettuce_yr_2020":
-            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{self.season}/{self.level}/scanner3DTop/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
+        if self.season == "10" or self.season == "11":
+            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{season_path}/{self.level}/scanner3DTop/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
         else:
-            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{self.season}/{self.level}/scanner3DTop/{self.crop}/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
+            ipath = f"https://data.cyverse.org/dav-anon/iplant/commons/community_released/phytooracle/{season_path}/{self.level}/scanner3DTop/{self.crop}/{self.date}/individual_plants_out/{self.date}_segmentation_pointclouds.tar"
         # print(ipath)
         # look through all_dates for the plant data
         # index by plant
