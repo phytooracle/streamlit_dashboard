@@ -168,7 +168,11 @@ def download_file(remote_path, local_folder, local_name):
             f'{options["webdav_hostname"]}{remote_path}',
             auth=(options["webdav_login"], options["webdav_password"]),
         )
-        file_extn = remote_path.split(".")[1]
+        # specifically done this for the point clouds index
+        try:
+            file_extn = remote_path.split(".")[1]
+        except:
+            file_extn = "txt"
         if response.status_code == 200:
             # Save the content to a local file
             with open(f"{local_folder}/{local_name}.{file_extn}", "wb") as local_file:
@@ -193,7 +197,7 @@ def get_plant_detection_csv(_session, index, season, sensor, crop, date):
         # 3D sensors don't have Plant Detection CSVs, so we find approx RGB date
         date_RGB = get_closest_date(
             _session, index, season, "stereoTop", crop, "0", date
-        )
+        )[0]
         if date_RGB == "":
             st.write(
                 f"No Plant Detection CSV is present for this sensor on this date. ({date})"
@@ -256,7 +260,7 @@ def get_closest_date(_session, index, season, sensor, crop, level, date):
             date_3D_obj == dte_obj + timedelta(days=1)
             or date_3D_obj == dte_obj - timedelta(days=1)
         ):
-            closest_date = date_id
+            closest_date = [date_id, dates[date_id]]
             break
     return closest_date
 
@@ -323,6 +327,36 @@ def data_analysis(
         return
     plant_detect_df = pd.read_csv(plant_detect_name)
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
+
+    # to fix season 10 and 11
+    if season == "10":
+        if sensor == "stereoTop" or sensor == "scanner3DTop":
+            plant_detect_df["plot"] = plant_detect_df["plot"].str.split(
+                "_", expand=True
+            )[6].str.zfill(2) + plant_detect_df["plot"].str.split("_", expand=True)[
+                8
+            ].str.zfill(
+                2
+            )
+        elif sensor == "flirIrCamera":
+            plant_detect_df["plot"] = plant_detect_df["plot"].str.split(
+                "_", expand=True
+            )[6].str.zfill(2) + plant_detect_df["plot"].str.split("_", expand=True)[
+                8
+            ].str.zfill(
+                2
+            )
+        elif sensor == "ps2Top":
+            plant_detect_df["plot"] = plant_detect_df["Plot"].str.split(
+                " ", expand=True
+            )[6].str.zfill(2) + plant_detect_df["Plot"].str.split(" ", expand=True)[
+                8
+            ].str.zfill(
+                2
+            )
+    if season == "11":
+        plant_detect_df["plot"] = plant_detect_df["plot"].astype(str).str.zfill(4)
+
     try:
         result = plant_detect_df.merge(field_book_df, on="plot")
         update = extra_files(_session, result, index, season, crop, sensor, date)
@@ -340,8 +374,8 @@ def data_analysis(
                 inplace=True,
             )
             file_fetcher = create_file_fetcher(_session, index, season, date, crop)
-            # create_filter(file_fetcher, combined_data=result, sensor=sensor)
-
+            # maybe add try/except here
+            create_filter(file_fetcher, result)
         else:
             if not update.empty:
                 result = update
@@ -371,7 +405,7 @@ def data_analysis(
                 mime="text/csv",
             )
             st.download_button(
-                label="Download Combined Data (FieldBook + Plant Detection)",
+                label="Download Combined Data",
                 data=convert_df(result),
                 file_name=f"{date}_combined_data.csv",
                 mime="text/csv",
@@ -546,8 +580,9 @@ def convert_df(df):
 
 
 def create_file_fetcher(_session, index, season, date, crop):
-    # date issue. incomplete
-    closest_date = get_closest_date(_session, index, season, "scanner3DTop", crop, date)
+    closest_date = get_closest_date(
+        _session, index, season, "scanner3DTop", crop, "2", date
+    )[1]
     if closest_date is None:
         # There are no level 2 point clouds for the chosen date or any date near it
         file_fetcher = None
@@ -558,7 +593,7 @@ def create_file_fetcher(_session, index, season, date, crop):
             local_idx_path = download_file(
                 cyverse_path,
                 "visualization",
-                f"{closest_date}_segmentation_pointclouds_index.txt",
+                f"{closest_date}_segmentation_pointclouds_index",
             )
             file_fetcher = fipc.Fetcher(
                 "individually_called_point_clouds",
@@ -574,7 +609,7 @@ def create_file_fetcher(_session, index, season, date, crop):
     return file_fetcher
 
 
-def create_filter(file_fetcher, combined_data, sensor):
+def create_filter(file_fetcher, combined_data):
     """Creates a dynamic fiter
 
     Args:
@@ -679,6 +714,54 @@ def create_filter(file_fetcher, combined_data, sensor):
         file_name=f"{combined_data.iloc[0, 0]}_filtered_data.csv",
         mime="text/csv",
     )
+    get_visuals(file_fetcher, filtered_df, exact_column_name, pn_exists)
+
+
+def get_visuals(file_fetcher, filtered_df, column_name, pn_exists):
+    """Make the map plot, as well as the histogram based on the selected filed
+
+    Args:
+      - filtered_df (dataframe): Pandas df that has Co-ordinates +  selected field
+      - column_name (dataframe): Selected column
+    """
+    px.set_mapbox_access_token(
+        "pk.eyJ1IjoiZW1tYW51ZWxnb256YWxleiIsImEiOiJja3RndzZ2NmIwbTJsMnBydGN1NWJ4bzkxIn0.rtptqiaoqpDIoXsw6Qa9lg"
+    )
+    if pn_exists:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name, "plant_name"],
+        )
+    else:
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="lat",
+            lon="lon",
+            color=column_name,
+            zoom=16.6,
+            opacity=1,
+            mapbox_style="satellite-streets",
+            hover_data=["lat", "lon", column_name],
+        )
+
+    # Change color scheme
+    fig.update_traces(marker=dict(colorscale="Viridis"))
+
+    # Change layout
+    fig.update_layout(
+        title="Plotly Map",
+        geo_scope="usa",
+        autosize=True,
+        font=dict(family="Courier New, monospace", size=18, color="RebeccaPurple"),
+    )
+
+    plotly_col.plotly_chart(fig, use_container_width=True)
 
 
 def callback(file_fetcher, crop_name):
