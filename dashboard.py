@@ -198,7 +198,7 @@ def get_plant_detection_csv(_session, index, season, sensor, crop, date):
         date_RGB = get_closest_date(
             _session, index, season, "stereoTop", crop, "0", date
         )[0]
-        if date_RGB == "":
+        if not date_RGB:
             st.write(
                 f"No Plant Detection CSV is present for this sensor on this date. ({date})"
             )
@@ -251,17 +251,19 @@ def get_plant_detection_csv(_session, index, season, sensor, crop, date):
 
 def get_closest_date(_session, index, season, sensor, crop, level, date):
     dates = get_date_list(_session, index, season, sensor, crop, level)
-    closest_date = ""
+    closest_date = []
     date_3D_obj = datetime.strptime(date, "%Y-%m-%d")
+    # to check neighboring dates in case of no exact match
     for date_id in dates.keys():
         dte_obj = datetime.strptime(date_id, "%Y-%m-%d")
-        # to check neighboring dates in case of no exact match
         if (date_3D_obj == dte_obj) or (
-            date_3D_obj == dte_obj + timedelta(days=1)
-            or date_3D_obj == dte_obj - timedelta(days=1)
+            date_3D_obj == dte_obj + timedelta(days=2)
+            or date_3D_obj == dte_obj - timedelta(days=2)
         ):
             closest_date = [date_id, dates[date_id]]
+        if (date_3D_obj == dte_obj):
             break
+    print(closest_date)
     return closest_date
 
 
@@ -327,9 +329,10 @@ def data_analysis(
         return
     plant_detect_df = pd.read_csv(plant_detect_name)
     plant_detect_df = plant_detect_df.rename(columns={"Plot": "plot"})
-
+    field_book_df = field_book_df.rename(columns={"Plot": "plot"})
     # to fix season 10 and 11
-    if season == "10":
+    if season == "Season 10":
+
         if sensor == "stereoTop" or sensor == "scanner3DTop":
             plant_detect_df["plot"] = plant_detect_df["plot"].str.split(
                 "_", expand=True
@@ -338,6 +341,7 @@ def data_analysis(
             ].str.zfill(
                 2
             )
+            plant_detect_df["plot"] = plant_detect_df["plot"].astype(int)
         elif sensor == "flirIrCamera":
             plant_detect_df["plot"] = plant_detect_df["plot"].str.split(
                 "_", expand=True
@@ -347,17 +351,18 @@ def data_analysis(
                 2
             )
         elif sensor == "ps2Top":
-            plant_detect_df["plot"] = plant_detect_df["Plot"].str.split(
+            plant_detect_df["plot"] =plant_detect_df["Plot"].str.split(
                 " ", expand=True
             )[6].str.zfill(2) + plant_detect_df["Plot"].str.split(" ", expand=True)[
                 8
             ].str.zfill(
                 2
             )
-    if season == "11":
+    if season == " Season 11":
         plant_detect_df["plot"] = plant_detect_df["plot"].astype(str).str.zfill(4)
-
     try:
+        plant_detect_df["plot"] = plant_detect_df["plot"].astype(int)
+        field_book_df["plot"] = field_book_df["plot"].astype(int)
         result = plant_detect_df.merge(field_book_df, on="plot")
         update = extra_files(_session, result, index, season, crop, sensor, date)
         if not re.search("ps2", sensor, re.IGNORECASE) and not update.empty:
@@ -414,6 +419,8 @@ def data_analysis(
         # result dataframe is empty or has not been created, allow the users to download the plant detection csv and fieldbook csv
         print(traceback.format_exc())
         st.subheader("Some Error occured (might be a merge issue).")
+        st.dataframe(field_book_df)
+        st.dataframe(plant_detect_df)
         st.write(
             "Below are the links to download the Plant Detection and the Fieldbook CSV"
         )
