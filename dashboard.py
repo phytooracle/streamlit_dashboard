@@ -588,7 +588,7 @@ def create_file_fetcher(_session, index, season, date, crop):
         file_fetcher = None
     else:
         try:
-            level_2_path = index[season]["paths"]["2"][crop]
+            level_2_path = index[season.split(" ")[1]]["paths"]["2"][crop]
             cyverse_path = f"{level_2_path}/{closest_date}/individual_plants_out/{closest_date}_segmentation_pointclouds_index"
             local_idx_path = download_file(
                 cyverse_path,
