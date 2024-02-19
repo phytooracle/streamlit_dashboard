@@ -704,7 +704,7 @@ def create_filter(file_fetcher, combined_data):
         )  # get which row user selects of the
 
         # vizualization on point clouds is possible and a plant was selected use callback
-        if selected["selected_rows"]:
+        if selected["selected_rows"] and file_fetcher:
             callback(file_fetcher, selected["selected_rows"][0]["plant_name"])
 
     col1.download_button(
