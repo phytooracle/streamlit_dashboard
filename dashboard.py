@@ -419,8 +419,6 @@ def data_analysis(
         # result dataframe is empty or has not been created, allow the users to download the plant detection csv and fieldbook csv
         print(traceback.format_exc())
         st.subheader("Some Error occured (might be a merge issue).")
-        st.dataframe(field_book_df)
-        st.dataframe(plant_detect_df)
         st.write(
             "Below are the links to download the Plant Detection and the Fieldbook CSV"
         )
